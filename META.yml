@@ -1,12 +1,16 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         Apache-Test
-version:      1.17
-version_from: 
+version_from: lib/Apache/Test.pm
 installdirs:  site
+
 requires:
     Cwd:                           2.06
     File::Spec:                    0.8
 
 distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.24
+
+no_index:
+    package:
+        - HTTP::Request::Common
+        - warnings
+    directory:
+        - Apache-TestItSelf
