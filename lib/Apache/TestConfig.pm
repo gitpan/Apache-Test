@@ -38,6 +38,7 @@ use constant IS_APACHE_TEST_BUILD =>
 
 use constant CUSTOM_CONFIG_FILE => 'Apache/TestConfigData.pm';
 
+use lib ();
 use File::Copy ();
 use File::Find qw(finddepth);
 use File::Basename qw(dirname);
@@ -1699,9 +1700,8 @@ sub untaint_path {
     ($path) = ( $path =~ /(.*)/ );
     # win32 uses ';' for a path separator, assume others use ':'
     my $sep = WIN32 ? ';' : ':';
-    # -T disallows relative directories in the PATH
-    $path = join $sep, grep !/^\./, split /$sep/, $path;
-    return $path;
+    # -T disallows relative and empty directories in the PATH
+    return join $sep, grep !/^(\.|$)/, split /$sep/, $path;
 }
 
 sub pop_dir {

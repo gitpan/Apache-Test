@@ -35,6 +35,9 @@ sub pre_configure {
 
     # Apache::TestConfigPerl already configures mod_perl.so
     Apache::TestConfig::autoconfig_skip_module_add('mod_perl.c');
+
+    # skip over Embperl.so - it's funky
+    Apache::TestConfig::autoconfig_skip_module_add('Embperl.c');
 }
 
 sub configure_modperl {
