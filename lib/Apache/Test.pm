@@ -40,7 +40,7 @@ my @test_more_exports = grep { ! /^(ok|skip|plan)$/ } @EXPORT;
 
 %EXPORT_TAGS = (withtestmore => \@test_more_exports);
 
-$VERSION = '1.16';
+$VERSION = '1.17';
 
 %SubTests = ();
 @SkipReasons = ();
@@ -604,7 +604,7 @@ one C or Perl module from the list cannot be found).
 the tests will be skipped if the function returns a false value. For
 example:
 
-    plan tests => 5, \&need_lwp;
+    plan tests => 5, need_lwp;
 
 the test will be skipped if LWP is not available
 
@@ -654,13 +654,13 @@ server versions.
 
 =item need_http11
 
-  plan tests => 5, &need_http11;
+  plan tests => 5, need_http11;
 
 Require HTTP/1.1 support.
 
 =item need_ssl
 
-  plan tests => 5, &need_ssl;
+  plan tests => 5, need_ssl;
 
 Require SSL support.
 
@@ -668,13 +668,13 @@ Not exported by default.
 
 =item need_lwp
 
-  plan tests => 5, &need_lwp;
+  plan tests => 5, need_lwp;
 
 Require LWP support.
 
 =item need_cgi
 
-  plan tests => 5, &need_cgi;
+  plan tests => 5, need_cgi;
 
 Requires mod_cgi or mod_cgid to be installed.
 
