@@ -15,7 +15,7 @@ sub new {
     my $self = $pkg->SUPER::new(@_);
     $self->{properties}{apache_test_args} = $vars;
     $self->{properties}{apache_test_script} ||= 't/TEST';
-    $self->generate_test_script;
+    $self->generate_script;
     return $self;
 }
 
@@ -92,7 +92,7 @@ sub ACTION_cmodules       { shift->_cmodues('all')   }
 sub ACTION_cmodules_clean { shift->_cmodues('clean') }
 
 # XXX I'd love to make this optional.
-sub generate_test_script {
+sub generate_script {
     my $self = shift;
 
     # If a file name has been passed in, use it. Otherwise, use the
@@ -135,8 +135,8 @@ sub generate_test_script {
     }
 
     # Make it so!
-    print "Generating test running script $script\n";
-    Apache::Test::config()->write_perlscript($script, $body);
+    print "Generating test running script $script\n" if $self->verbose;
+    Apache::Test::basic_config()->write_perlscript($script, $body);
     $self->add_to_cleanup($self->apache_test_script);
 }
 
@@ -182,7 +182,8 @@ Here's how to use C<Apache::TestMB> in a F<Build.PL> script:
 
   my $build = $build_pkg->new(
       module_name => 'My::Module',
-  )->create_build_script;
+  );
+  $build->create_build_script;
 
 This is identical to how C<Module::Build> is used. Not all target
 systems may have C<Apache::Test> (and therefore C<Apache::TestMB>
