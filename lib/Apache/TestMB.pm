@@ -60,6 +60,27 @@ sub ACTION_run_tests {
                      '-bugreport', '-verbose=' . ($self->verbose || 0));
 }
 
+sub ACTION_testcover {
+    my $self = shift;
+
+    unless ($self->find_module_by_name('Devel::Cover', \@INC)) {
+        warn("Cannot run testcover action unless Devel::Cover "
+             . "is installed.\n");
+        return;
+    }
+
+    $self->add_to_cleanup('coverage', 'cover_db');
+
+    my $atdir = $self->localize_file_path("$ENV{HOME}/.apache-test");
+    local $Test::Harness::switches    =
+    local $Test::Harness::Switches    =
+    local $ENV{HARNESS_PERL_SWITCHES} = "-MDevel::Cover=+inc,'$atdir'";
+    local $ENV{APACHE_TEST_EXTRA_ARGS} = "-one-process";
+
+    $self->depends_on('test');
+    $self->do_system('cover');
+}
+
 sub _bliblib {
     my $self = shift;
     return (
@@ -109,7 +130,7 @@ sub generate_script {
     unlink $script if -e $script;
 
     # Start the contents of t/TEST.
-    my $body = "BEGIN { eval { require blib; } }\n"
+    my $body = "BEGIN { eval { require blib && blib->import; } }\n"
       . Apache::TestConfig->modperl_2_inc_fixup;
 
     # Configure the arguments for t/TEST.
@@ -233,6 +254,12 @@ F<t/TEST>. It is also executed by the C<clean> action.
 This action actually the tests by executing the test script,
 F<t/TEST>. It is executed by the C<test> action, so most of the time
 it won't be executed directly.
+
+=item testcover
+
+C<Apache::TestMB> overrides this action from C<Module::Build> in order to
+prevent the C<Apache::Test> preference files from being included in the test
+coverage.
 
 =back
 

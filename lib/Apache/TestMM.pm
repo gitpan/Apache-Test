@@ -65,12 +65,12 @@ test_clean :
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
 	t/TEST $(APACHE_TEST_EXTRA_ARGS) -clean
 
-run_tests : test_clean
+run_tests :
 	$(PASSENV) \
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
 	t/TEST $(APACHE_TEST_EXTRA_ARGS) -bugreport -verbose=$(TEST_VERBOSE) $(TEST_FILES)
 
-test :: pure_all run_tests test_clean
+test :: pure_all test_clean run_tests
 
 cmodules:
 	cd c-modules && $(MAKE) all
@@ -86,7 +86,7 @@ sub generate_script {
 
     unlink $file if -e $file;
 
-    my $body = "BEGIN { eval { require blib; } }\n";
+    my $body = "BEGIN { eval { require blib && blib->import; } }\n";
 
     $body .= Apache::TestConfig->modperl_2_inc_fixup;
 
