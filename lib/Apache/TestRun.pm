@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::TestRun;
 
 use strict;
@@ -236,6 +250,15 @@ sub getopts {
         }
         # to be processed later
         push @argv, $val;
+    }
+
+    # fixup the filepath options on win32 (spaces, short names, etc.)
+    if (Apache::TestConfig::WIN32) {
+        for my $key (keys %conf_opts) {
+            next unless Apache::TestConfig::conf_opt_is_a_filepath($key);
+            next unless -e $conf_opts{$key};
+            $conf_opts{$key} = Win32::GetShortPathName($conf_opts{$key});
+        }
     }
 
     $opts{req_args} = \%req_args;
@@ -645,11 +668,12 @@ sub run {
     $self->set_ulimit;
     $self->set_env; #make sure these are always set
 
-    custom_config_load();
-
     my(@argv) = @_;
 
     $self->getopts(\@argv);
+
+    # must be called after getopts so the tracing will be set right
+    custom_config_load();
 
     $self->pre_configure() if $self->can('pre_configure');
 
@@ -1239,8 +1263,11 @@ sub custom_config_path {
 }
 
 sub custom_config_exists {
-    # custom config gets loaded via custom_config_load when this
-    # package is loaded. it's enough to check whether we have a custom
+    # try to load custom config if it wasn't loaded yet (there are
+    # many entry points to this API)
+    custom_config_load();
+
+    # it's enough to check whether we have a custom
     # config for 'httpd' or 'apxs'.
     my $httpd = $Apache::TestConfigData::vars->{httpd} || '';
     return 1 if $httpd && -e $httpd && -x _;
@@ -1430,11 +1457,15 @@ EOC
     close $fh;
 }
 
+my $custom_config_loaded = 0;
 sub custom_config_load {
     debug "trying to load custom config data";
 
+    return if $custom_config_loaded;
+
     if (my $custom_config_path = custom_config_path()) {
         debug "loading custom config path '$custom_config_path'";
+        $custom_config_loaded++;
         require $custom_config_path;
     }
 }
