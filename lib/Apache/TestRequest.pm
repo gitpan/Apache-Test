@@ -750,14 +750,14 @@ If you need to force an SSL request to use a particular SSL
 certificate, pass the name of the certificate via the C<cert>
 parameter:
 
-  my $res = GET $uri, cert = 'my_cert';
+  my $res = GET $uri, cert => 'my_cert';
 
 =item content
 
 If you need to add content to your request, use the C<content>
 parameter:
 
-  my $res = GET $uri, content = 'hello world!';
+  my $res = GET $uri, content => 'hello world!';
 
 =item filename
 
@@ -768,24 +768,22 @@ test server via C<UPLOAD()> and its friends.
 
 =head2 The Functions
 
-=over 4
-
-=item GET
+=head3 GET
 
   my $res = GET $uri;
 
 Sends a simple GET request to the Apache test server. Returns an
 C<HTTP::Response> object.
 
-=item GET_STR
+=head3 GET_STR
 
-A shortcut function for C<< GET($uri)->as_string >>.
+A shortcut function for C<GET($uri)-E<gt>as_string>.
 
-=item GET_BODY
+=head3 GET_BODY
 
-A shortcut function for C<< GET($uri)->content >>.
+A shortcut function for C<GET($uri)-E<gt>content>.
 
-=item GET_BODY_ASSERT
+=head3 GET_BODY_ASSERT
 
 Use this function when your test is outputting content that you need
 to check, and you want to make sure that the request was successful
@@ -794,15 +792,15 @@ unsuccessful, C<GET_BODY_ASSERT> will return an error
 message. Otherwise it will simply return the content of the request
 just as C<GET_BODY> would.
 
-=item GET_OK
+=head3 GET_OK
 
-A shortcut function for C<< GET($uri)->is_success >>.
+A shortcut function for C<GET($uri)-E<gt>is_success>.
 
-=item GET_RC
+=head3 GET_RC
 
-A shortcut function for C<< GET($uri)->code >>.
+A shortcut function for C<GET($uri)-E<gt>code>.
 
-=item GET_HEAD
+=head3 GET_HEAD
 
 Throws out the content of the request, and returns the string
 representation of the request. Since the body has been thrown out, the
@@ -812,23 +810,23 @@ string, so that the contents are suitable for printing to STDERR
 during your tests without interfering with the workings of
 C<Test::Harness>.
 
-=item HEAD
+=head3 HEAD
 
   my $res = HEAD $uri;
 
 Sends a HEAD request to the Apache test server. Returns an
 C<HTTP::Response> object.
 
-=item HEAD_STR
+=head3 HEAD_STR
 
-A shortcut function for C<< HEAD($uri)->as_string >>.
+A shortcut function for C<HEAD($uri)-E<gt>as_string>.
 
-=item HEAD_BODY
+=head3 HEAD_BODY
 
-A shortcut function for C<< HEAD($uri)->content >>. Of course, this
+A shortcut function for C<HEAD($uri)-E<gt>content>. Of course, this
 means that it will likely return nothing.
 
-=item HEAD_BODY_ASSERT
+=head3 HEAD_BODY_ASSERT
 
 Use this function when your test is outputting content that you need
 to check, and you want to make sure that the request was successful
@@ -837,15 +835,15 @@ unsuccessful, C<HEAD_BODY_ASSERT> will return an error
 message. Otherwise it will simply return the content of the request
 just as C<HEAD_BODY> would.
 
-=item HEAD_OK
+=head3 HEAD_OK
 
-A shortcut function for C<< GET($uri)->is_success >>.
+A shortcut function for C<GET($uri)-E<gt>is_success>.
 
-=item HEAD_RC
+=head3 HEAD_RC
 
-A shortcut function for C<< GET($uri)->code >>.
+A shortcut function for C<GET($uri)-E<gt>code>.
 
-=item HEAD_HEAD
+=head3 HEAD_HEAD
 
 Throws out the content of the request, and returns the string
 representation of the request. Since the body has been thrown out, the
@@ -855,22 +853,22 @@ string, so that the contents are suitable for printing to STDERR
 during your tests without interfering with the workings of
 C<Test::Harness>.
 
-=item PUT
+=head3 PUT
 
   my $res = PUT $uri;
 
 Sends a simple PUT request to the Apache test server. Returns an
 C<HTTP::Response> object.
 
-=item PUT_STR
+=head3 PUT_STR
 
-A shortcut function for C<< PUT($uri)->as_string >>.
+A shortcut function for C<PUT($uri)-E<gt>as_string>.
 
-=item PUT_BODY
+=head3 PUT_BODY
 
-A shortcut function for C<< PUT($uri)->content >>.
+A shortcut function for C<PUT($uri)-E<gt>content>.
 
-=item PUT_BODY_ASSERT
+=head3 PUT_BODY_ASSERT
 
 Use this function when your test is outputting content that you need
 to check, and you want to make sure that the request was successful
@@ -879,15 +877,15 @@ unsuccessful, C<PUT_BODY_ASSERT> will return an error
 message. Otherwise it will simply return the content of the request
 just as C<PUT_BODY> would.
 
-=item PUT_OK
+=head3 PUT_OK
 
-A shortcut function for C<< PUT($uri)->is_success >>.
+A shortcut function for C<PUT($uri)-E<gt>is_success>.
 
-=item PUT_RC
+=head3 PUT_RC
 
-A shortcut function for C<< PUT($uri)->code >>.
+A shortcut function for C<PUT($uri)-E<gt>code>.
 
-=item PUT_HEAD
+=head3 PUT_HEAD
 
 Throws out the content of the request, and returns the string
 representation of the request. Since the body has been thrown out, the
@@ -897,25 +895,31 @@ string, so that the contents are suitable for printing to STDERR
 during your tests without interfering with the workings of
 C<Test::Harness>.
 
-=item POST
+=head3 POST
 
-  my $res = POST $uri, arg  => $val, arg2 => $val;
+  my $res = POST $uri, [ arg => $val, arg2 => $val ];
 
 Sends a POST request to the Apache test server and returns an
-HTTP::Response object. Any parameters passed after C<$uri> that do not
-correspond to those documented in L<Optional Parameters|/Optional
-Parameters> will be submitted to the Apache test server as the POST
-content.
+C<HTTP::Response> object. An array reference of parameters passed as
+the second argument will be submitted to the Apache test server as the
+POST content. Parameters corresponding to those documented in
+L<Optional Parameters|/Optional
+Parameters> can follow the optional array reference of parameters, or after
+C<$uri>.
 
-=item POST_STR
+To upload a chunk of data, simply use:
 
-A shortcut function for C<< POST($uri, @args)->content >>.
+  my $res = POST $uri, content => $data;
 
-=item POST_BODY
+=head3 POST_STR
 
-A shortcut function for C<< POST($uri, @args)->content >>.
+A shortcut function for C<POST($uri, @args)-E<gt>content>.
 
-=item POST_BODY_ASSERT
+=head3 POST_BODY
+
+A shortcut function for C<POST($uri, @args)-E<gt>content>.
+
+=head3 POST_BODY_ASSERT
 
 Use this function when your test is outputting content that you need
 to check, and you want to make sure that the request was successful
@@ -924,15 +928,15 @@ unsuccessful, C<POST_BODY_ASSERT> will return an error
 message. Otherwise it will simply return the content of the request
 just as C<POST_BODY> would.
 
-=item POST_OK
+=head3 POST_OK
 
-A shortcut function for C<< POST($uri, @args)->is_success >>.
+A shortcut function for C<POST($uri, @args)-E<gt>is_success>.
 
-=item POST_RC
+=head3 POST_RC
 
-A shortcut function for C<< POST($uri, @args)->code >>.
+A shortcut function for C<POST($uri, @args)-E<gt>code>.
 
-=item POST_HEAD
+=head3 POST_HEAD
 
 Throws out the content of the request, and returns the string
 representation of the request. Since the body has been thrown out, the
@@ -942,7 +946,7 @@ string, so that the contents are suitable for printing to STDERR
 during your tests without interfering with the workings of
 C<Test::Harness>.
 
-=item UPLOAD
+=head3 UPLOAD
 
   my $res = UPLOAD $uri, \@args, filename => $filename;
 
@@ -962,11 +966,11 @@ The name of the file sent to the server will simply be "b". Note that
 in this case, you cannot pass other POST arguments to C<UPLOAD()> --
 they would be ignored.
 
-=item UPLOAD_BODY
+=head3 UPLOAD_BODY
 
-A shortcut function for C<< UPLOAD($uri, @params)->content >>.
+A shortcut function for C<UPLOAD($uri, @params)-E<gt>content>.
 
-=item UPLOAD_BODY_ASSERT
+=head3 UPLOAD_BODY_ASSERT
 
 Use this function when your test is outputting content that you need
 to check, and you want to make sure that the request was successful
@@ -975,7 +979,7 @@ unsuccessful, C<UPLOAD_BODY_ASSERT> will return an error
 message. Otherwise it will simply return the content of the request
 just as C<UPLOAD_BODY> would.
 
-=item OPTIONS
+=head3 OPTIONS
 
   my $res = OPTIONS $uri;
 
@@ -986,9 +990,6 @@ C<GET>, C<HEAD> and C<POST>. This function thus can be useful for
 testing what options the Apache server supports. Consult the HTTPD 1.1
 specification, section 9.2, at
 I<http://www.faqs.org/rfcs/rfc2616.html> for more information.
-
-=back
-
 
 =head1 ENVIRONMENT VARIABLES
 

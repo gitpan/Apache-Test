@@ -111,7 +111,7 @@ sub new {
 
     @{ $self->{tests} } = $self->get_tests($test_opts);
 
-    $self->{base_command} = "./TEST";
+    $self->{base_command} = "$^X $FindBin::Bin/TEST";
 
     # options common to all
     $self->{base_command} .= " -verbose" if $self->{verbose};
@@ -188,9 +188,6 @@ END {
 
 sub run {
     my($self) = shift;
-
-    # make sure that there the server is down
-    $self->kill_proc();
 
     $self->Apache::TestRun::warn_core();
     local $SIG{INT};
@@ -461,6 +458,7 @@ sub sequence_seen {
 }
 
 sub run_test {
+    require IPC::Run3;
     my($self, $iter, $count, $tests, $ra_ok) = @_;
     my $bad = '';
     my $ra_nok = [];
@@ -473,16 +471,9 @@ sub run_test {
     # start server
     {
         my $command = $self->{start_command};
-        open my $pipe, "$command 2>&1|" or die "cannot fork: $!";
-        my $oldfh = select $pipe; $| = 1; select $oldfh;
-        # XXX: check startup success?
-        my $started_ok = 0;
         my $log = '';
-        while (my $t = <$pipe>) {
-            $started_ok = 1 if $t =~ /started/;
-            $log .= $t;
-        }
-        close $pipe;
+        IPC::Run3::run3($command, undef, \$log, \$log);
+        my $started_ok = ($log =~ /started/) ? 1 : 0;
         unless ($started_ok) {
             error "failed to start server\n $log";
             exit 1;
@@ -507,21 +498,12 @@ sub run_test {
             my $fill = "." x ($max_len - length $test_name);
             $self->{total_tests_run}++;
 
-            open my $pipe, "$command $test 2>&1|" or die "cannot fork: $!";
-            my $oldfh = select $pipe; $| = 1; select $oldfh;
-
-            my $ok = 0;
+            my $test_command = "$command $test";
             my $log = '';
-            while (<$pipe>) {
-                $log .= $_;
+            IPC::Run3::run3($test_command, undef, \$log, \$log);
+            my $ok = ($log =~ /All tests successful/) ? 1 : 0;
 
-                $ok = 1 if /All tests successful/;
-            }
-            # it's normal for $command to exit with a failure status if tests
-            # fail, so we don't die/report it
-            close $pipe;
-
-            my @core_files_msg = $self->Apache::TestRun::scan_core_incremental;
+            my @core_files_msg = $self->Apache::TestRun::scan_core_incremental(1);
 
             # if the test has caused core file(s) it's not ok
             $ok = 0 if @core_files_msg;
@@ -592,25 +574,6 @@ sub run_test {
     $self->logs_end();
 
     # stop server
-    {
-        my $command = $self->{stop_command};
-        open my $pipe, "$command 2>&1|" or die "cannot fork: $!";
-        my $oldfh = select $pipe; $| = 1; select $oldfh;
-        # XXX: check stopup success?
-        my $stopped_ok = 0;
-        my $log = '';
-        while (my $t = <$pipe>) {
-            $stopped_ok = 1 if $t =~ /shutdown/;
-            $log .= $t;
-        }
-        close $pipe;
-        unless ($stopped_ok) {
-            error "failed to stop server\n $log";
-            exit 1;
-        }
-    }
-
-    # double check that we killed them all?
     $self->kill_proc();
 
     if ($self->{bug_mode}) {
@@ -741,16 +704,15 @@ sub build_config_as_string {
 sub kill_proc {
     my($self) = @_;
 
-    # a hack
-    my $t_logs  = $self->{test_config}->{vars}->{t_logs};
-    my $file = catfile $t_logs, "httpd.pid";
-    return unless -f $file;
+    my $command = $self->{stop_command};
+    my $log = '';
+    require IPC::Run3;
+    IPC::Run3::run3($command, undef, \$log, \$log);
 
-    my $pid = `cat $file`;
-    chomp $pid;
-    return unless $pid;
-
-    kill SIGINT => $pid;
+    my $stopped_ok = ($log =~ /shutdown/) ? 1 : 0;
+    unless ($stopped_ok) {
+        error "failed to stop server\n $log";
+    }
 }
 
 sub opt_help {

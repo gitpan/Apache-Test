@@ -31,8 +31,10 @@ sub configure_libmodperl {
     # the wanted version is 1. So check that we use mod_perl 2
     elsif ($server->{rev} >= 2 && IS_MOD_PERL_2) {
         if (my $build_config = $self->modperl_build_config()) {
-            $libname = $build_config->{MODPERL_LIB_SHARED};
-            $vars->{libmodperl} ||= $self->find_apache_module($libname);
+            if ($build_config->{MODPERL_LIB_SHARED}) {
+                $libname = $build_config->{MODPERL_LIB_SHARED};
+                $vars->{libmodperl} ||= $self->find_apache_module($libname);
+            }
             # XXX: we have a problem with several perl trees pointing
             # to the same httpd tree. So it's possible that we
             # configure the test suite to run with mod_perl.so built
@@ -65,6 +67,11 @@ sub configure_libmodperl {
             $lib =~ s/lib$/dll/;
             $cfg = 'LoadFile ' . qq("$lib"\n) if -e $lib;
 	}
+        # add the module we found to the cached modules list
+        # otherwise have_module('mod_perl') doesn't work unless
+        # we have a LoadModule in our base config
+        $self->{modules}->{'mod_perl.c'} = $vars->{libmodperl};
+
         $cfg .= 'LoadModule ' . qq(perl_module "$vars->{libmodperl}"\n);
     }
     else {
@@ -81,9 +88,8 @@ sub configure_inc {
     my $top = $self->{vars}->{top_dir};
 
     my $inc = $self->{inc};
-    my @trys = (catfile($top, 'lib'),
-                catfile($top, qw(blib lib)),
-                catfile($top, qw(blib arch)));
+    my @trys = (catdir($top, qw(blib lib)),
+                catdir($top, qw(blib arch)));
 
     for (@trys) {
         push @$inc, $_ if -d $_;
@@ -125,7 +131,8 @@ EOF
 # propogate trace overrides to the server
 sub configure_trace {
     my $self = shift;
-    $self->postamble(PerlPassEnv => 'APACHE_TEST_TRACE_LEVEL');
+    $self->postamble(IfModule => 'mod_perl.c',
+                     "PerlPassEnv APACHE_TEST_TRACE_LEVEL\n");
 }
 
 sub startup_pl_code {
@@ -153,17 +160,25 @@ sub configure_startup_pl {
     if (my $inc = $self->{inc}) {
         my $include_pl = catfile $self->{vars}->{t_conf}, 'modperl_inc.pl';
         my $fh = $self->genfile($include_pl);
-        # make sure that the dev libs come before blib
         for (reverse @$inc) {
             print $fh "use lib '$_';\n";
         }
         my $fixup = Apache::TestConfig->modperl_2_inc_fixup();
         print $fh $fixup;
+
+        # if Apache::Test is used to develop a project, we want the
+        # project/lib directory to be first in @INC (loaded last)
+        if ($ENV{APACHE_TEST_LIVE_DEV}) {
+            my $dev_lib = catdir $self->{vars}->{top_dir}, "lib";
+            print $fh "use lib '$dev_lib';\n" if -d $dev_lib;
+        }
+
         print $fh "1;\n";
     }
 
     if ($self->server->{rev} >= 2) {
-        $self->postamble(PerlSwitches => "-Mlib=$self->{vars}->{serverroot}");
+        $self->postamble(IfModule => 'mod_perl.c',
+                         "PerlSwitches -Mlib=$self->{vars}->{serverroot}\n");
     }
 
     my $startup_pl = catfile $self->{vars}->{t_conf}, 'modperl_startup.pl';
@@ -174,7 +189,8 @@ sub configure_startup_pl {
         close $fh;
     }
 
-    $self->postamble(PerlRequire => $startup_pl);
+    $self->postamble(IfModule => 'mod_perl.c',
+                     "PerlRequire $startup_pl\n");
 }
 
 my %sethandler_modperl = (1 => 'perl-script', 2 => 'modperl');
