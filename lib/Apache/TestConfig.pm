@@ -83,7 +83,7 @@ sub filter_args {
     while (@filter) {
         my $key = shift @filter;
         # optinal - or -- prefix
-        if ($key =~ /^-?-?(.+)/ && exists $wanted_args->{$1}) {
+        if (defined $key && $key =~ /^-?-?(.+)/ && exists $wanted_args->{$1}) {
             if (@filter) {
                 $keep{$1} = shift @filter;
             }
@@ -284,6 +284,8 @@ sub configure_apxs {
 
     return unless $self->{APXS};
 
+    $self->{APXS} =~ s{/}{\\}g if WIN32;
+
     my $vars = $self->{vars};
 
     $vars->{bindir}   ||= $self->apxs('BINDIR', 1);
@@ -370,25 +372,25 @@ sub configure_proxy {
 sub add_config {
     my $self = shift;
     my $where = shift;
-    my($directive, $arg, $hash) = @_;
+    my($directive, $arg, $data) = @_;
     my $args = "";
 
-    if ($hash) {
+    if ($data) {
         $args = "<$directive $arg>\n";
-        if (ref($hash)) {
-            while (my($k,$v) = each %$hash) {
-                if (ref($v) eq 'ARRAY') {
-                    for (@$v) {
-                        $args .= "    $k $_\n";
-                    }
-                }
-                else {
-                    $args .= "    $k $v\n";
-                }
+        if (ref($data) eq 'HASH') {
+            while (my($k,$v) = each %$data) {
+                $args .= "    $k $v\n";
+            }
+        }
+        elsif (ref($data) eq 'ARRAY') {
+            # balanced (key=>val) list
+            my $pairs = @$data / 2;
+            for my $i (0..($pairs-1)) {
+                $args .= sprintf "    %s %s\n", $data->[$i*2], $data->[$i*2+1];
             }
         }
         else {
-            $args .= "    $hash";
+            $args .= "    $data";
         }
         $args .= "</$directive>\n";
     }
@@ -685,9 +687,11 @@ sub warn_style_sub_ref {
 }
 
 sub genwarning {
-    my($self, $filename) = @_;
+    my($self, $filename, $from_filename) = @_;
     return unless $filename;
-    my $warning = "WARNING: this file is generated, do not edit\n";
+    my $warning = "WARNING: this file is generated";
+    $warning .= " (from $from_filename)" if defined $from_filename;
+    $warning .= ", do not edit\n";
     $warning .= calls_trace();
     return $self->warn_style_sub_ref($filename)->($warning);
 }
@@ -726,32 +730,35 @@ sub clean_add_path {
 }
 
 sub genfile_trace {
-    my($self, $file) = @_;
+    my($self, $file, $from_file) = @_;
     my $name = abs2rel $file, $self->{vars}->{t_dir};
-    debug "generating $name";
+    my $msg = "generating $name";
+    $msg .= " from $from_file" if defined $from_file;
+    debug $msg;
 }
 
 sub genfile_warning {
-    my($self, $file, $fh) = @_;
+    my($self, $file, $from_file, $fh) = @_;
 
-    if (my $msg = $self->genwarning($file)) {
+    if (my $msg = $self->genwarning($file, $from_file)) {
         print $fh $msg, "\n";
     }
 }
 
+# $from_file == undef if there was no templates used
 sub genfile {
-    my($self, $file, $nowarning) = @_;
+    my($self, $file, $from_file, $nowarning) = @_;
 
     # create the parent dir if it doesn't exist yet
     my $dir = dirname $file;
     $self->makepath($dir);
 
-    $self->genfile_trace($file);
+    $self->genfile_trace($file, $from_file);
 
     my $fh = Symbol::gensym();
     open $fh, ">$file" or die "open $file: $!";
 
-    $self->genfile_warning($file, $fh) unless $nowarning;
+    $self->genfile_warning($file, $from_file, $fh) unless $nowarning;
 
     $self->clean_add_file($file);
 
@@ -762,7 +769,7 @@ sub genfile {
 sub writefile {
     my($self, $file, $content, $nowarning) = @_;
 
-    my $fh = $self->genfile($file, $nowarning);
+    my $fh = $self->genfile($file, undef, $nowarning);
 
     print $fh $content if $content;
 
@@ -806,12 +813,12 @@ EOF
 sub write_perlscript {
     my($self, $file, $content) = @_;
 
-    my $fh = $self->genfile($file, 1);
+    my $fh = $self->genfile($file, undef, 1);
 
     # shebang
     print $fh "#!$Config{perlpath}\n";
 
-    $self->genfile_warning($file, $fh);
+    $self->genfile_warning($file, undef, $fh);
 
     print $fh $content if $content;
 
@@ -925,10 +932,11 @@ sub servername_config {
 sub parse_vhost {
     my($self, $line) = @_;
 
-    my($indent, $module);
-    if ($line =~ /^(\s*)<VirtualHost\s+(?:_default_:)?(.*?)\s*>\s*$/) {
-        $indent = $1 || "";
-        $module = $2;
+    my($indent, $module, $namebased);
+    if ($line =~ /^(\s*)<VirtualHost\s+(?:_default_:|([^:]+):(?!:))?(.*?)\s*>\s*$/) {
+        $indent    = $1 || "";
+        $namebased = $2 || "";
+        $module    = $3;
     }
     else {
         return undef;
@@ -954,14 +962,23 @@ sub parse_vhost {
     }
 
     #allocate a port and configure this module into $self->{vhosts}
-    my $port = $self->new_vhost($module);
+    my $port = $self->new_vhost($module, $namebased);
 
     #extra config that should go *inside* the <VirtualHost ...>
-    my @in_config = $self->servername_config($vars->{servername},
+    my @in_config = $self->servername_config($namebased
+                                                 ? $namebased
+                                                 : $vars->{servername},
                                              $port);
 
-    #extra config that should go *outside* the <VirtualHost ...>
-    my @out_config = ([Listen => $port]);
+    my @out_config = ();
+    if ($self->{vhosts}->{$module}->{namebased} < 2) {
+        #extra config that should go *outside* the <VirtualHost ...>
+        @out_config = ([Listen => $port]);
+
+        if ($self->{vhosts}->{$module}->{namebased}) {
+            push @out_config => [NameVirtualHost => "*:$port"];
+        }
+    }
 
     #there are two ways of building a vhost
     #first is when we parse test .pm and .c files
@@ -987,7 +1004,8 @@ sub parse_vhost {
         #used when parsing *.conf.in files
         in_string     => $form_string->($double_indent, @in_config),
         out_string    => $form_string->($indent, @out_config),
-        line          => "$indent<VirtualHost _default_:$port>",
+        line          => "$indent<VirtualHost " . ($namebased ? '*' : '_default_') .
+                         ":$port>",
     };
 }
 
@@ -1041,6 +1059,14 @@ EOF
 
 sub generate_types_config {
     my $self = shift;
+
+    # handle the case when mod_mime is built as a shared object
+    # but wasn't included in the system-wide httpd.conf
+    my $mod_mime = $self->find_apache_module('mod_mime.so');
+    if ($mod_mime && -e $mod_mime) {
+        $self->preamble(IfModule => '!mod_mime.c',
+                        qq{LoadModule mime_module "$mod_mime"\n});
+    }
 
     unless ($self->{inherit_config}->{TypesConfig}) {
         my $types = catfile $self->{vars}->{t_conf}, 'mime.types';
@@ -1119,7 +1145,7 @@ sub generate_extra_conf {
         my $in = Symbol::gensym();
         open($in, $file) or next;
 
-        my $out = $self->genfile($generated);
+        my $out = $self->genfile($generated, $file);
         $self->replace_vars($in, $out);
 
         close $in;
@@ -1278,6 +1304,17 @@ sub generate_httpd_conf {
 
     $self->replace_vars($in, $out);
 
+    # handle the case when mod_alias is built as a shared object
+    # but wasn't included in the system-wide httpd.conf
+    my $mod_alias = $self->find_apache_module('mod_alias.so');
+    if ($mod_alias && -e $mod_alias) {
+        print $out <<EOF;
+<IfModule !mod_alias.c>
+    LoadModule alias_module "$mod_alias"
+</IfModule>
+EOF
+    }
+
     for (keys %aliases) {
         next unless $vars->{$aliases{$_}};
         print $out "Alias /getfiles-$_ $vars->{$aliases{$_}}\n";
@@ -1400,9 +1437,9 @@ sub add_inc {
     my $self = shift;
     return if $ENV{MOD_PERL}; #already setup by mod_perl
     require lib;
-    # make sure that the Apache-Test dev libs will be first in @INC,
-    # followed by modperl's lib, followed by blib and finally core
-    # Perl libs.
+    # make sure that Apache-Test/lib will be first in @INC,
+    # followed by modperl-2.0/lib (or some other project's lib/),
+    # followed by blib/ and finally system-wide libs.
     lib::->import(map "$self->{vars}->{top_dir}/$_",
                   qw(Apache-Test/lib lib blib/lib blib/arch));
     #print join "\n", "add_inc", @INC, "";
@@ -1535,6 +1572,11 @@ file. After the warning a perl trace of calls to this this function is
 appended. This trace is useful for finding what code has created the
 file.
 
+  my $warn = $cfg->genwarning($filename, $from_filename)
+
+If C<$from_filename> is specified it'll be used in the warning to tell
+which file it was generated from.
+
 genwarning() automatically recognizes the comment type based on the
 file extension. If the extension is not recognized, the default C<#>
 style is used.
@@ -1549,14 +1591,28 @@ styles.
 genfile() creates a new file C<$file> for writing and returns a file
 handle.
 
-A comment with a warning and calls trace is added to the top of this
-file. See genwarning() for more info about this comment.
-
 If parent directories of C<$file> don't exist they will be
 automagically created.
 
 The file C<$file> and any created parent directories (if found empty)
 will be automatically removed on cleanup.
+
+A comment with a warning and calls trace is added to the top of this
+file. See genwarning() for more info about this comment.
+
+  my $fh = $cfg->genfile($file, $from_file);
+
+If C<$from_filename> is specified it'll be used in the warning to tell
+which file it was generated from.
+
+  my $fh = $cfg->genfile($file, $from_file, $nowarning);
+
+If C<$nowarning> is true, the warning won't be added. If using this
+optional argument and there is no C<$from_file> you must pass undef as
+in:
+
+  my $fh = $cfg->genfile($file, undef, $nowarning);
+
 
 =item writefile()
 
@@ -1614,7 +1670,10 @@ DocumentRoot "@DocumentRoot@"
 PidFile     @t_logs@/httpd.pid
 ErrorLog    @t_logs@/error_log
 LogLevel    debug
-TransferLog @t_logs@/access_log
+
+<IfModule mod_log_config.c>
+    TransferLog @t_logs@/access_log
+</IfModule>
 
 ServerAdmin @ServerAdmin@
 

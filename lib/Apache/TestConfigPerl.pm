@@ -214,17 +214,31 @@ sub location_container {
 sub vhost_container {
     my($self, $module) = @_;
     my $port = $self->{vhosts}->{$module}->{port};
-    VirtualHost => "_default_:$port";
+    my $namebased = $self->{vhosts}->{$module}->{namebased};
+
+    VirtualHost => ($namebased ? '*' : '_default_') . ":$port";
 }
 
 sub new_vhost {
-    my($self, $module) = @_;
+    my($self, $module, $namebased) = @_;
+    my($port, $servername, $vhost);
 
-    my $port       = $self->server->select_port;
-    my $servername = $self->{vars}->{servername};
-    my $vhost      = $self->{vhosts}->{$module} = {};
+    unless ($namebased and exists $self->{vhosts}->{$module}) {
+        $port       = $self->server->select_port;
+        $vhost      = $self->{vhosts}->{$module} = {};
 
-    $vhost->{port}       = $port;
+        $vhost->{port}       = $port;
+        $vhost->{namebased}  = $namebased ? 1 : 0;
+    }
+    else {
+        $vhost      = $self->{vhosts}->{$module};
+        $port       = $vhost->{port};
+        # remember the already configured Listen/NameVirtualHost
+        $vhost->{namebased}++;
+    }
+
+    $servername = $self->{vars}->{servername};
+
     $vhost->{servername} = $servername;
     $vhost->{name}       = join ':', $servername, $port;
     $vhost->{hostport}   = $self->hostport($vhost, $module);
@@ -354,7 +368,7 @@ sub process_vhost_open_tag {
     if ($cfg) {
         my $port = $cfg->{port};
         $cfg->{out_postamble}->();
-        $self->postamble("$indent<VirtualHost _default_:$port>");
+        $self->postamble($cfg->{line});
         $cfg->{in_postamble}->();
     } else {
         $self->postamble("$indent$line");
@@ -498,29 +512,12 @@ sub configure_pm_tests {
                 }
             }
 
-            my $args_hash = list_to_hash_of_lists(\@args);
-            $self->postamble($self->$container($module),
-                $args_hash) if @args;
+            $self->postamble($self->$container($module), \@args) if @args;
         }
 
         $self->write_pm_test($module, lc $base, lc $sub);
     }
 }
-
-# turn a balanced (key=>val) list with potentially multiple indentical
-# keys into a hash of lists.
-#############
-sub list_to_hash_of_lists {
-    my $arr = shift;
-    my %hash = ();
-    my $pairs = @$arr / 2;
-    for my $i (0..($pairs-1)) {
-        my ($key, $val) = ($arr->[$i*2], $arr->[$i*2+1]);
-        push @{ $hash{$key} }, $val;
-    }
-    return \%hash;
-}
-
 
 # scan tests for interesting information
 sub run_apache_test_config_scan {

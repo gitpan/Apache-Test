@@ -38,8 +38,9 @@ sub new {
     $self->{port_counter} = $self->{config}->{vars}->{port};
 
     $self->{version} = $self->{config}->httpd_version || '';
-    ($self->{rev}) = $self->{version} =~ m:^Apache/(\d)\.:;
-    $self->{rev} ||= 2;
+    $self->{mpm}     = $self->{config}->httpd_mpm     || '';
+    ($self->{rev})   = $self->{version} =~ m:^Apache/(\d)\.:;
+    $self->{rev}   ||= 2;
 
     $self;
 }
@@ -129,7 +130,7 @@ sub strace_cmd {
 
 sub valgrind_cmd {
     my($self, $valgrind) = @_;
-    "$valgrind -v --leak-check=yes --show-reachable=yes";
+    "$valgrind -v --leak-check=yes --show-reachable=yes --error-limit=no";
 }
 
 sub start_valgrind {
@@ -260,7 +261,7 @@ sub pid {
         select undef, undef, undef, 0.25;
     }
 
-    chomp(my $pid = <$fh>);
+    chomp(my $pid = <$fh> || '');
     $pid;
 }
 

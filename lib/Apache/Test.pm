@@ -15,8 +15,8 @@ use vars qw(@ISA @EXPORT $VERSION %SubTests @SkipReasons);
              have_cgi have_access have_auth have_module have_apache
              have_min_apache_version have_apache_version have_perl 
              have_min_perl_version have_min_module_version
-             have_threads under_construction);
-$VERSION = '1.03';
+             have_threads under_construction have_apache_mpm);
+$VERSION = '1.04';
 
 %SubTests = ();
 @SkipReasons = ();
@@ -46,7 +46,14 @@ sub sok (&;$) {
         return;
     }
 
-    ok $sub->();
+    my($package, $filename, $line) = caller;
+
+    # trick ok() into reporting the caller filename/line when a
+    # sub-test fails in sok()
+    return eval <<EOE;
+#line $line $filename
+    ok(\$sub->());
+EOE
 }
 
 #so Perl's Test.pm can be run inside mod_perl
@@ -156,6 +163,9 @@ sub have {
                 push @SkipReasons, $reason;
                 $have_all = 0;
             }
+        }
+        elsif ($cond =~ /^(0|1)$/) {
+            $have_all = 0 if $cond == 0;
         }
         else {
             $have_all = 0 unless have_module($cond);
@@ -274,6 +284,22 @@ sub have_apache_version {
         push @SkipReasons,
           "apache version $wanted or higher is required," .
           " this is version $current";
+        return 0;
+    }
+    else {
+        return 1;
+    }
+}
+
+sub have_apache_mpm {
+    my $wanted = shift;
+    my $cfg = Apache::Test::config();
+    my $current = $cfg->{server}->{mpm};
+
+    if ($current ne $wanted) {
+        push @SkipReasons,
+          "apache $wanted mpm is required," .
+          " this is the $current mpm";
         return 0;
     }
     else {
@@ -540,6 +566,16 @@ For example:
 
 requires Apache 2.0.40.
 
+=item have_apache_mpm
+
+Used to require a specific Apache Multi-Processing Module.
+
+For example:
+
+  plan tests => 5, have_apache_mpm('prefork');
+
+requires the prefork MPM.
+
 =item have_perl
 
   plan tests => 5, have_perl 'iolayers';
@@ -625,9 +661,17 @@ scalars, which are passed to have_module(), and hash references. If
 hash references are used, the keys, are strings, containing a reason
 for a failure to satisfy this particular entry, the valuees are the
 condition, which are satisfaction if they return true. If the value is
-a scalar it's used as is. If the value is a code reference, it gets
-executed at the time of check and its return value is used to check
-the condition. If the condition check fails, the provided (in a key)
+0 or 1, it used to decide whether the requirements very satisfied, so
+you can mix special C<have_*()> functions that return 0 or 1. For
+example:
+
+  plan tests => 1, have 'Compress::Zlib', 'deflate',
+      have_min_apache_version("2.0.49");
+
+If the scalar value is a string, different from 0 or 1, it's passed to
+I<have_module()>.  If the value is a code reference, it gets executed
+at the time of check and its return value is used to check the
+condition. If the condition check fails, the provided (in a key)
 reason is used to tell user why the test was skipped.
 
 In the presented example, we require the presense of the C<LWP> Perl
@@ -655,6 +699,18 @@ into a string.  Example:
 
     # $tests will contain the Test.pm output: 1..4\nok 1\n...
     my $tests = Apache::TestToString->finish;
+
+=head1 SEE ALSO
+
+The Apache-Test tutorial:
+L<http://perl.apache.org/docs/general/testing/testing.html>.
+
+L<Apache::TestRequest|Apache::TestRequest> subclasses LWP::UserAgent and
+exports a number of useful functions for sending request to the Apache test
+server. You can then test the results of those requests.
+
+Use L<Apache::TestMM|Apache::TestMM> in your F<Makefile.PL> to set up your
+distribution for testing.
 
 =head1 AUTHOR
 

@@ -133,7 +133,16 @@ sub inherit_load_module {
 
         debug "LoadModule $modname $name";
 
-        $self->preamble($directive => qq($modname "$file"));
+        # sometimes people have broken system-wide httpd.conf files,
+        # which include LoadModule of modules, which are built-in, but
+        # won't be skipped above if they are found in the modules/
+        # directory. this usually happens when httpd is built once
+        # with its modules built as shared objects and then again with
+        # static ones: the old httpd.conf still has the LoadModule
+        # directives, even though the modules are now built-in
+        # so we try to workaround this problem using <IfModule>
+        $self->preamble(IfModule => "!$name",
+                        qq{LoadModule $modname "$file"\n});
     }
 }
 
@@ -309,6 +318,10 @@ sub get_httpd_defines {
     if (my $mpm_dir = $self->{httpd_defines}->{APACHE_MPM_DIR}) {
         $self->{mpm} = basename $mpm_dir;
     }
+    else {
+        # Apache 1.3 - no mpm to speak of
+        $self->{mpm} = '';
+    }
 }
 
 sub httpd_version {
@@ -339,6 +352,10 @@ sub httpd_version {
     close $v;
 
     return $version;
+}
+
+sub httpd_mpm {
+    return shift->{mpm};
 }
 
 1;
