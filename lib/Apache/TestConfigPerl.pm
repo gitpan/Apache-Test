@@ -93,7 +93,12 @@ sub configure_libmodperl {
         $cfg = "#$msg";
         debug $msg;
     }
-    $self->preamble(IfModule => '!mod_perl.c', $cfg);
+
+    # modules like Embperl.so need mod_perl.so to be loaded first,
+    # so make sure that it's loaded before files inherited from the
+    # global httpd.conf
+    $self->preamble_first(IfModule => '!mod_perl.c', $cfg);
+
 }
 
 sub configure_inc {
@@ -222,7 +227,7 @@ sub set_connection_handler {
     my($self, $module, $args) = @_;
     my $port = $self->new_vhost($module);
     my $vars = $self->{vars};
-    $self->postamble(Listen => $vars->{servername} . ':' . $port);
+    $self->postamble(Listen => '0.0.0.0:' . $port);
 }
 
 my %add_hook_config = (
@@ -479,14 +484,6 @@ sub configure_pm_tests_sort {
 
 sub configure_pm_tests {
     my $self = shift;
-
-    # since server wasn't started yet, the modules in blib under
-    # Apache2 can't be seen. So we must load Apache2.pm, without which
-    # run_apache_test_config might fail to require modules
-    require mod_perl;
-    if ($mod_perl::VERSION > 1.99) {
-        require Apache2;
-    }
 
     my @entries = ();
     $self->configure_pm_tests_pick(\@entries);

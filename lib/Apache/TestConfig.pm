@@ -18,8 +18,10 @@ use strict;
 use warnings FATAL => 'all';
 
 use constant WIN32   => $^O eq 'MSWin32';
+use constant OSX     => $^O eq 'darwin';
 use constant CYGWIN  => $^O eq 'cygwin';
 use constant NETWARE => $^O eq 'NetWare';
+use constant SOLARIS => $^O eq 'solaris';
 use constant WINFU   => WIN32 || CYGWIN || NETWARE;
 use constant COLOR   => ($ENV{APACHE_TEST_COLOR} && -t STDOUT) ? 1 : 0;
 
@@ -72,6 +74,7 @@ use vars qw(%Usage);
    apxs            => 'location of apxs (default is from Apache::BuildConfig)',
    startup_timeout => 'seconds to wait for the server to start (default is 60)',
    httpd_conf      => 'inherit config from this file (default is apxs derived)',
+   httpd_conf_extra=> 'inherit additional config from this file',
    maxclients      => 'maximum number of concurrent clients (default is 1)',
    perlpod         => 'location of perl pod documents (for testing downloads)',
    proxyssl_url    => 'url for testing ProxyPass / https (default is localhost)',
@@ -84,8 +87,8 @@ use vars qw(%Usage);
 
 my %filepath_conf_opts = map { $_ => 1 }
     qw(top_dir t_dir t_conf t_logs t_conf_file src_dir serverroot
-       documentroot bindir sbindir httpd apxs httpd_conf perlpod sslca
-       libmodperl);
+       documentroot bindir sbindir httpd apxs httpd_conf httpd_conf_extra
+       perlpod sslca libmodperl);
 
 sub conf_opt_is_a_filepath {
     my $opt = shift;
@@ -264,7 +267,7 @@ sub new {
 
     if (WINFU) {
         for (keys %$vars) {
-            $vars->{$_} =~ s|\\|\/|g;
+            $vars->{$_} =~ s|\\|\/|g if defined $vars->{$_};
         }
     }
 
@@ -408,9 +411,25 @@ sub configure_proxy {
     return undef;
 }
 
-sub add_config {
+# adds the config to the head of the group instead of the tail
+# XXX: would be even better to add to a different sub-group
+# (e.g. preamble_first) of only those that want to be first and then,
+# make sure that they are dumped to the config file first in the same
+# group (e.g. preamble)
+sub add_config_first {
     my $self = shift;
     my $where = shift;
+    unshift @{ $self->{$where} }, $self->massage_config_args(@_);
+}
+
+sub add_config_last {
+    my $self = shift;
+    my $where = shift;
+    push @{ $self->{$where} }, $self->massage_config_args(@_);
+}
+
+sub massage_config_args {
+    my $self = shift;
     my($directive, $arg, $data) = @_;
     my $args = "";
 
@@ -441,15 +460,23 @@ sub add_config {
           (ref($arg) && (ref($arg) eq 'ARRAY') ? "@$arg" : $arg || "");
     }
 
-    push @{ $self->{$where} }, $args;
+    return $args;
+}
+
+sub postamble_first {
+    shift->add_config_first(postamble => @_);
 }
 
 sub postamble {
-    shift->add_config(postamble => @_);
+    shift->add_config_last(postamble => @_);
+}
+
+sub preamble_first {
+    shift->add_config_first(preamble => @_);
 }
 
 sub preamble {
-    shift->add_config(preamble => @_);
+    shift->add_config_last(preamble => @_);
 }
 
 sub postamble_register {
@@ -1017,7 +1044,7 @@ sub parse_vhost {
     my @out_config = ();
     if ($self->{vhosts}->{$module}->{namebased} < 2) {
         #extra config that should go *outside* the <VirtualHost ...>
-        @out_config = ([Listen => $vars->{servername} . ':' . $port]);
+        @out_config = ([Listen => '0.0.0.0:' . $port]);
 
         if ($self->{vhosts}->{$module}->{namebased}) {
             push @out_config => [NameVirtualHost => "*:$port"];
@@ -1499,7 +1526,8 @@ sub apxs {
     my($self, $q, $ok_fail) = @_;
     return unless $self->{APXS};
     my $devnull = devnull();
-    my $val = qx($self->{APXS} -q $q 2>$devnull);
+    my $apxs = shell_ready($self->{APXS});
+    my $val = qx($apxs -q $q 2>$devnull);
     chomp $val if defined $val; # apxs post-2.0.40 adds a new line
     unless ($val) {
         if ($ok_fail) {
@@ -1621,6 +1649,7 @@ sub as_string {
     # httpd opts
     my $test_config = Apache::TestConfig->new({thaw=>1});
     if (my $httpd = $test_config->{vars}->{httpd}) {
+        $httpd = shell_ready($httpd);
         $command = "$httpd -V";
         $cfg .= "\n*** $command\n";
         $cfg .= qx{$command};
@@ -1629,12 +1658,20 @@ sub as_string {
     }
 
     # perl opts
-    my $perl = $^X;
+    my $perl = shell_ready($^X);
     $command = "$perl -V";
     $cfg .= "\n\n*** $command\n";
     $cfg .= qx{$command};
 
     return $cfg;
+}
+
+# make a string suitable for feed to shell calls (wrap in quotes and
+# escape quotes)
+sub shell_ready {
+    my $arg = shift;
+    $arg =~ s/"/\"/g;
+    return qq["$arg"];
 }
 
 1;
@@ -1785,7 +1822,7 @@ perl(1), Apache::Test(3)
 
 
 __DATA__
-Listen     @ServerName@:@Port@
+Listen     0.0.0.0:@Port@
 
 ServerRoot   "@ServerRoot@"
 DocumentRoot "@DocumentRoot@"

@@ -458,6 +458,8 @@ sub configure_opts {
     $test_config->postamble_register($postamble);
 }
 
+sub pre_configure { }
+
 sub configure {
     my $self = shift;
 
@@ -614,6 +616,17 @@ sub new_test_config {
 sub set_ulimit_via_sh {
     return if Apache::TestConfig::WINFU;
     return if $ENV{APACHE_TEST_ULIMIT_SET};
+
+    # only root can allow unlimited core dumps on Solaris (8 && 9?)
+    if (Apache::TestConfig::SOLARIS) {
+        my $user = getpwuid($>) || '';
+        if ($user ne 'root') {
+            warning "Skipping 'set unlimited ulimit for coredumps', " .
+                "since we are running as a non-root user on Solaris";
+            return;
+        }
+    }
+
     my $binsh = '/bin/sh';
     return unless -e $binsh;
     $ENV{APACHE_TEST_ULIMIT_SET} = 1;
@@ -668,6 +681,8 @@ sub run {
     $self->set_ulimit;
     $self->set_env; #make sure these are always set
 
+    $self->detect_relocation($orig_cwd);
+
     my(@argv) = @_;
 
     $self->getopts(\@argv);
@@ -675,12 +690,9 @@ sub run {
     # must be called after getopts so the tracing will be set right
     custom_config_load();
 
-    $self->pre_configure() if $self->can('pre_configure');
+    $self->pre_configure();
 
     $self->{test_config} = $self->new_test_config();
-
-    # make it easy to move the whole distro
-    $self->refresh unless -e $self->{test_config}->{vars}->{top_dir};
 
     $self->warn_core();
 
@@ -725,6 +737,60 @@ sub run {
     $self->run_tests;
 
     $self->stop;
+}
+
+# make it easy to move the whole distro w/o running
+# 't/TEST -clean' before moving. when moving the whole package,
+# the old cached config will stay, so we want to nuke it only if
+# we realize that it's no longer valid. we can't just check the
+# existance of the saved top_dir value, since the project may have
+# been copied and the old dir could be still there, but that's not
+# the one that we work in
+sub detect_relocation {
+    my($self, $cur_top_dir) = @_;
+
+    my $config_file = catfile qw(t conf apache_test_config.pm);
+    return unless -e $config_file;
+
+    my %inc = %INC;
+    eval { require "$config_file" };
+    %INC = %inc; # be stealth
+    warn($@), return if $@;
+
+    my $cfg = 'apache_test_config'->new;
+
+    # if the top_dir from saved config doesn't match the current
+    # top_dir, that means that the whole project was relocated to a
+    # different directory, w/o running t/TEST -clean first (in each
+    # directory with a test suite)
+    my $cfg_top_dir = $cfg->{vars}->{top_dir};
+    return unless $cfg_top_dir;
+    return if $cfg_top_dir eq $cur_top_dir;
+
+    # if that's the case silently fixup the saved config to use the
+    # new paths, and force a complete cleanup. if we don't fixup the
+    # config files, the cleanup process won't be able to locate files
+    # to delete and re-configuration will fail
+    {
+        # in place editing
+        local @ARGV = $config_file;
+        local $^I = ".bak";  # Win32 needs a backup
+        while (<>) {
+            s{$cfg_top_dir}{$cur_top_dir}g;
+            print;
+        }
+        unlink $config_file . $^I;
+    }
+
+    my $cleanup_cmd = "$^X $0 -clean";
+    warning "cleaning up the old config";
+    # XXX: do we care to check success?
+    system $cleanup_cmd;
+
+    # XXX: I tried hard to accomplish that w/o starting a new process,
+    # but too many things get on the way, so for now just keep it as an
+    # external process, as it's absolutely transparent to the normal
+    # app-run
 }
 
 my @oh = qw(jeez golly gosh darn shucks dangit rats nuts dangnabit crap);
@@ -881,6 +947,7 @@ sub adjust_t_perms {
 
         $self->check_perms($user, $uid, $gid);
 
+        $self->become_nonroot($user, $uid, $gid);
     }
 }
 
@@ -945,7 +1012,7 @@ sub check_perms {
     # test that the base dir is rwx by the selected non-root user
     my $vars = $self->{test_config}->{vars};
     my $dir  = $vars->{t_dir};
-    my $perl = $vars->{perl};
+    my $perl = Apache::TestConfig::shell_ready($vars->{perl});
 
     # find where Apache::TestRun was loaded from, so we load this
     # exact package from the external process
@@ -986,6 +1053,26 @@ EOI
         skip_test_suite();
         exit_perl 0;
     }
+}
+
+# in case the client side creates any files after the initial chown
+# adjustments we want the server side to be able to read/write them, so
+# they better be with the same permissions. dropping root permissions
+# and becoming the same user as the server side solves this problem.
+sub become_nonroot {
+    my ($self, $user, $uid, $gid) = @_;
+
+    warning "the client side drops 'root' permissions and becomes '$user'";
+
+    # first must change gid and egid ("$gid $gid" for an empty
+    # setgroups() call as explained in perlvar.pod)
+    my $groups = "$gid $gid";
+    $( = $) = $groups;
+    die "failed to change gid to $gid" unless $( eq $groups && $) eq $groups;
+
+    # only now can change uid and euid
+    $< = $> = $uid+0;
+    die "failed to change uid to $uid" unless $< == $uid && $> == $uid;
 }
 
 sub run_request {
@@ -1134,8 +1221,10 @@ sub generate_script {
 
     $body .= Apache::TestConfig->modperl_2_inc_fixup;
 
-    if (@Apache::TestMM::Argv) {
-        $body .= "\n\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
+    my %args = @Apache::TestMM::Argv;
+    while (my($k, $v) = each %args) {
+        $v =~ s/\|/\\|/g;
+        $body .= "\n\$Apache::TestConfig::Argv{'$k'} = q|$v|;\n";
     }
 
     my $header = Apache::TestConfig->perlscript_header;
@@ -1307,6 +1396,11 @@ sub custom_config_file_stub_write {
 sub custom_config_save {
     my $self = shift;
 
+    if ($ENV{APACHE_TEST_NO_STICKY_PREFERENCES}) {
+        debug "skipping save of custom config data";
+        return;
+    }
+
     my $vars = $self->{test_config}->{vars};
     my $conf_opts = $self->{conf_opts};
     my $config_dump = '';
@@ -1459,6 +1553,12 @@ EOC
 
 my $custom_config_loaded = 0;
 sub custom_config_load {
+
+    if ($ENV{APACHE_TEST_NO_STICKY_PREFERENCES}) {
+        debug "skipping load of custom config data";
+        return;
+    }
+
     debug "trying to load custom config data";
 
     return if $custom_config_loaded;
@@ -1712,9 +1812,15 @@ I<t/TEST.PL>:
       my $self = shift;
       # Don't load an installed mod_apreq
       Apache::TestConfig::autoconfig_skip_module_add('mod_apreq.c');
+  
+      $self->SUPER::pre_configure();
   }
 
 Notice that the extension is I<.c>, and not I<.so>.
+
+Don't forget to run the super class' c<pre_configure()> method.
+
+
 
 =head2 C<new_test_config>
 
@@ -1734,6 +1840,10 @@ C<APACHE_TEST_APXS>, C<APACHE_TEST_PORT>, C<APACHE_TEST_USER>, and
 C<APACHE_TEST_GROUP>) or by giving the relevant option (C<-httpd>,
 C<-apxs>, C<-port>, C<-user>, and C<-group>) when the C<TEST> script
 is run.
+
+To avoid either using previous persistent configurations or saving
+current configurations, set the C<APACHE_TEST_NO_STICKY_PREFERENCES>
+environment variable to a true value.
 
 Finally it's possible to permanently override the previously saved
 options by passing C<L<-save|/Saving_Custom_Configuration_Options>>.
