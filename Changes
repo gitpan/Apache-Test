@@ -6,6 +6,24 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.11 - May 21, 2004
+
+if we fail to match the Apache revision (which is OK at the early
+stages, like 'perl Makefile.PL', default to a non-existing revision
+0. But provide no more misleading defaults (used to default to
+revision 2 and then looking for mod_perl2). [Stas]
+
+Improve the regex to match the Apache revision out of 'httpd -v'
+[Michael A Nachbaur <mike@nachbaur.com>]
+
+-minclients is now what -maxclients used to be, -maxclients is now
+really what it says it is [Stas]
+
+Fix Apache::TestRequest::lwp_as_string to work with LWP 5.79 [Stas]
+
+
+
+
 =item 1.10 - April 18, 2004
 
 Quote and escape the executables in the shell calls [Ken Coar, Stas]
