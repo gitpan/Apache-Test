@@ -82,6 +82,7 @@ require Exporter;
 @ISA = qw(LWP::UserAgent);
 
 my $UA;
+my $REDIR = $have_lwp ? undef : 1;
 
 sub module {
     my $module = shift;
@@ -116,13 +117,19 @@ sub user_agent {
     if (exists $args->{requests_redirectable}) {
         my $redir = $args->{requests_redirectable};
         if (ref $redir and (@$redir > 1 or $redir->[0] ne 'POST')) {
-            $RedirectOK = 1;
+            # Set our internal flag if there's no LWP.
+            $REDIR = $have_lwp ? undef : 1;
         } elsif ($redir) {
-            $args->{requests_redirectable} = [ qw/GET HEAD POST/ ]
-                if $have_lwp;
-            $RedirectOK = 1;
+            if ($have_lwp) {
+                $args->{requests_redirectable} = [ qw/GET HEAD POST/ ];
+                $REDIR = undef;
+            } else {
+                # Set our internal flag.
+                $REDIR = 1;
+            }
         } else {
-            $RedirectOK = 0;
+            # Make sure our internal flag is false if there's no LWP.
+            $REDIR = $have_lwp ? undef : 0;
         }
     }
 
@@ -196,12 +203,19 @@ sub wanted_args {
     \%wanted_args;
 }
 
-$RedirectOK = 1;
-
 sub redirect_ok {
-    my($self, $request) = @_;
-    return 0 if $request->method eq 'POST';
-    $RedirectOK;
+    my $self = shift;
+    if ($have_lwp) {
+        # Return user setting or let LWP handle it.
+        return $RedirectOK if defined $RedirectOK;
+        return $self->SUPER::redirect_ok(@_);
+    }
+
+    # No LWP. We don't support redirect on POST.
+    return 0 if $self->method eq 'POST';
+    # Return user setting or our internal calculation.
+    return $RedirectOK if defined $RedirectOK;
+    return $REDIR;
 }
 
 my %credentials;
@@ -326,7 +340,7 @@ sub prepare {
 sub UPLOAD {
     my($url, $pass, $keep) = prepare(@_);
 
-    local $RedirectOK = exists $keep->{redirect_ok} 
+    local $RedirectOK = exists $keep->{redirect_ok}
         ? $keep->{redirect_ok}
         : $RedirectOK;
 
@@ -761,6 +775,10 @@ if there is only one value and that value is not "POST":
   my $redir = have_lwp() ? [qw(GET HEAD POST)] : 1;
   Apache::TestRequest::user_agent(reset => 1,
                                   requests_redirectable => $redir);
+
+But note that redirection will B<not> work with C<POST> unless LWP is
+installed. It's best, therefore, to check C<have_lwp> before running
+tests that rely on a redirection from C<POST>.
 
 =head1 FUNCTIONS
 
