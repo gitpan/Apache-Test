@@ -15,14 +15,14 @@ use constant IS_MOD_PERL_2       =>
     eval { require mod_perl } && $mod_perl::VERSION >= 1.99;
 
 use constant IS_MOD_PERL_2_BUILD => IS_MOD_PERL_2 &&
-    eval { require Apache::Build } && Apache::Build::IS_MOD_PERL_BUILD();
+    require Apache::Build && Apache::Build::IS_MOD_PERL_BUILD();
 
 use Symbol ();
 use File::Copy ();
 use File::Find qw(finddepth);
 use File::Basename qw(dirname);
 use File::Path ();
-use File::Spec::Functions qw(catfile abs2rel splitdir
+use File::Spec::Functions qw(catfile abs2rel splitdir canonpath
                              catdir file_name_is_absolute);
 use Cwd qw(fastcwd);
 
@@ -321,6 +321,7 @@ sub configure_httpd {
         #handle both $prefix/bin/httpd and $prefix/Apache.exe
         for (1,2) {
             pop @chunks;
+            last unless @chunks;
             $self->{httpd_basedir} = catfile @chunks;
             last if -d "$self->{httpd_basedir}/bin";
         }
@@ -769,14 +770,34 @@ sub writefile {
 }
 
 sub perlscript_header {
-    return <<'EOF';
+
+    require FindBin;
+
+    # the live 'lib/' dir of the distro (e.g. modperl-2.0/ModPerl-Registry/lib)
+    my @dirs = canonpath catdir $FindBin::Bin, "lib";
+
+    # the live dir of the top dir if any  (e.g. modperl-2.0/lib)
+    if (-e catfile($FindBin::Bin, "..", "Makefile.PL") &&
+        -d catdir($FindBin::Bin, "..", "lib") ) {
+        push @dirs, canonpath catdir $FindBin::Bin, "..", "lib";
+    }
+
+    for (qw(. ..)) {
+        my $dir = canonpath catdir $FindBin::Bin, $_ , "Apache-Test", "lib";
+        if (-d $dir) {
+            push @dirs, $dir;
+            last;
+        }
+    }
+
+    my $dirs = join("\n    ", '', @dirs) . "\n";;
+
+    return <<"EOF";
 
 use strict;
 use warnings FATAL => 'all';
 
-use FindBin;
-use lib map "$FindBin::Bin/$_",
-        qw(../Apache-Test/lib ../lib ../../lib);
+use lib qw($dirs);
 
 EOF
 }

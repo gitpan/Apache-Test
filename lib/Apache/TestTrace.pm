@@ -3,30 +3,30 @@ package Apache::TestTrace;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache::TestConfig ();
-
 use Exporter ();
-use vars qw(@Levels @Utils @ISA @EXPORT $VERSION $Level $LogFH);
+use vars qw(@Levels @Utils @Subs @ISA @EXPORT $VERSION $Level $LogFH);
 
 BEGIN {
     @Levels = qw(emerg alert crit error warning notice info debug);
     @Utils  = qw(todo);
+    @Subs   = map {($_, "${_}_mark", "${_}_sub")} (@Levels, @Utils);
 }
 
 @ISA     = qw(Exporter);
-@EXPORT  = (@Levels, @Utils);
+@EXPORT  = (@Subs);
 $VERSION = '0.01';
-use subs (@Levels, @Utils);
+use subs (@Subs);
 
 # default settings overrideable by users
-$Level = 'info';
+$Level = undef;
 $LogFH = \*STDERR;
 
 # private data
+use constant COLOR   => ($ENV{APACHE_TEST_COLOR} && -t STDOUT) ? 1 : 0;
 use constant HAS_COLOR  => eval {
     #XXX: another way to color WINFU terms?
     !(grep { $^O eq $_ } qw(MSWin32 cygwin NetWare)) and
-    Apache::TestConfig::COLOR and require Term::ANSIColor;
+    COLOR and require Term::ANSIColor;
 };
 use constant HAS_DUMPER => eval { require Data::Dumper;    };
 
@@ -75,32 +75,60 @@ else {
     sub { map { ref $_ ? Data::Dumper::Dumper($_) : $_ } @_ } :
     sub { @_ };
 
+sub prefix {
+    my $prefix = shift;
+
+    if ($prefix eq 'mark') {
+        return join(":", (caller(3))[1..2]) . " : ";
+    }
+    elsif ($prefix eq 'sub') {
+        return (caller(3))[3] . " : ";
+    }
+    else {
+        return '';
+    }
+}
+
 sub c_trace {
-    my $level = shift;
+    my ($level, $prefix_type) = (shift, shift);
+    my $prefix = prefix($prefix_type);
     print $LogFH 
-        map { "$colors{$level}$_$colors{reset}\n"}
+        map { "$colors{$level}$prefix$_$colors{reset}\n"}
         grep defined($_), expand(@_);
 }
 
 sub nc_trace {
-    my $level = shift;
+    my ($level, $prefix_type) = (shift, shift);
+    my $prefix = prefix($prefix_type);
     print $LogFH 
-        map { sprintf "%-3s %s\n", $colors{$level}, $_ } 
+        map { sprintf "%-3s %s%s\n", $colors{$level}, $prefix, $_ } 
         grep defined($_), expand(@_);
 }
 
 {
     my $trace = HAS_COLOR ? \&c_trace : \&nc_trace;
-
+    my @prefices = ('', 'mark', 'sub');
     # if the level is sufficiently high, enable the tracing for a
     # given level otherwise assign NOP
-    for my $level (@Levels,@Utils) {
+    for my $level (@Levels, @Utils) {
         no strict 'refs';
-        *$level = sub { 
-            $trace->($level, @_) 
-                if ( $levels{$Level} || $levels{$default_level} ) >= $levels{$level};
-        };
+        for my $prefix (@prefices) {
+            my $func = $prefix ? "${level}_$prefix" : $level;
+            *$func = sub { $trace->($level, $prefix, @_)
+                               if trace_level() >= $levels{$level};
+                     };
+        }
     }
+}
+
+sub trace_level {
+    # overriden by user/-trace 
+    (defined $Level && $levels{$Level}) ||
+    # or overriden by env var
+    (exists $ENV{APACHE_TEST_TRACE_LEVEL} && 
+        $levels{$ENV{APACHE_TEST_TRACE_LEVEL}}) ||
+    # or default
+    $levels{$default_level};
 }
 
 1;
@@ -113,6 +141,12 @@ __END__
 =head1 SYNOPSIS
 
     use Apache::TestTrace;
+  
+    debug "foo bar";
+  
+    info_sub "missed it";
+  
+    error_mark "something is wrong";
 
     # test sub that exercises all the tracing functions
     sub test {
@@ -122,24 +156,24 @@ __END__
                                   warning notice info debug todo);
         print $Apache::TestTrace::LogFH "\n\n"
     };
-
+  
     # demo the trace subs using default setting
     test();
-
+  
     {
         # override the default trace level with 'crit'
         local $Apache::TestTrace::Level = 'crit';
         # now only 'crit' and higher levels will do tracing lower level
         test();
     }
-
+  
     {
         # set the trace level to 'debug'
         local $Apache::TestTrace::Level = 'debug';
         # now only 'debug' and higher levels will do tracing lower level
         test();
     }
-
+  
     {
         open OUT, ">/tmp/foo" or die $!;
         # override the default Log filehandle
@@ -148,6 +182,12 @@ __END__
         test();
         close OUT;
     }
+  
+    # override tracing level via -trace opt
+    % t/TEST -trace=debug
+  
+    # override tracing level via env var
+    % env APACHE_TEST_TRACE_LEVEL=debug t/TEST
 
 =head1 DESCRIPTION
 
@@ -165,6 +205,12 @@ The module provides another trace function called todo() which is
 useful for todo items. It has the same level as I<debug> (the
 highest).
 
+There are two more variants of each of these functions. If the
+I<_mark> suffix is appended (e.g., I<error_mark>) the trace will start
+with the filename and the line number the function was called from. If
+the I<_sub> suffix is appended (e.g., I<error_info>) the trace will
+start with the name of the subroutine the function was called from.
+
 If you have C<Term::ANSIColor> installed the diagnostic messages will
 be colorized, otherwise a special for each function prefix will be
 used.
@@ -179,6 +225,11 @@ set to I<alert>, only alert() and emerg() functions will generate the
 output. The default setting of this variable is I<warning>. Other
 valid values are: I<emerg>, I<alert>, I<crit>, I<error>, I<warning>,
 I<notice>, I<info>, I<debug>.
+
+Another way to affect the trace level is to set
+C<$ENV{APACHE_TEST_TRACE_LEVEL}>, which takes effect if
+C<$Apache::TestTrace::Level> is not set. So an explicit setting of
+C<$Apache::TestTrace::Level> always takes precedence.
 
 By default all the output generated by these functions goes to
 STDERR. You can override the default filehandler by overriding

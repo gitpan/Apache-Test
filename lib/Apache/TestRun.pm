@@ -221,6 +221,9 @@ sub getopts {
         my %levels = map {$_ => 1} @Apache::TestTrace::Levels;
         if (exists $levels{ $opts{trace} }) {
             $Apache::TestTrace::Level = $opts{trace};
+            # propogate the override for the server-side.
+            # -trace overrides any previous APACHE_TEST_TRACE_LEVEL settings
+            $ENV{APACHE_TEST_TRACE_LEVEL} = $opts{trace};
         }
         else {
             error "unknown trace level: $opts{trace}",
@@ -838,7 +841,7 @@ sub generate_script {
 
     $file ||= catfile 't', 'TEST';
 
-    my $body = "use blib;\n";
+    my $body = "BEGIN { eval { require blib; } }\n";
 
     $body .= Apache::TestConfig->modperl_2_inc_fixup;
 

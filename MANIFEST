@@ -29,10 +29,12 @@ t/TEST.PL
 t/conf/extra.conf.in
 t/ping.t
 t/request.t
+install-pl
 Changes
 MANIFEST
+LICENSE
 Makefile.PL
 README
 ToDo
 
-META.yml                                Module meta-data in YAML
+META.yml                                Module meta-data (added by MakeMaker)

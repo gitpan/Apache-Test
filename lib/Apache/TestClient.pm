@@ -74,7 +74,7 @@ sub request {
             $response_line = 1;
         }
         elsif (/^([a-zA-Z0-9_\-]+)\s*:\s*(.*?)$eol/o) {
-            $res->{headers}->{$1} = $2;
+            $res->{headers}->{lc $1} = $2;
         }
         elsif (/^$eol$/o) {
             $header_term = 1;
@@ -91,6 +91,10 @@ sub request {
         $res->{content} = <$s>;
     }
     close $s;
+
+    # an empty body is a valid response
+    $res->{content} = '' 
+        unless exists $res->{content} and defined $res->{content};
 
     $res->{headers_as_string} =~ s/\015//g; #for as_string
 
@@ -110,7 +114,7 @@ package Apache::TestClientResponse;
 
 sub header {
     my($self, $key) = @_;
-    $self->{headers}->{$key};
+    $self->{headers}->{lc $key};
 }
 
 my @headers = qw(Last-Modified Content-Type);
@@ -118,7 +122,7 @@ my @headers = qw(Last-Modified Content-Type);
 for my $header (@headers) {
     no strict 'refs';
     (my $method = lc $header) =~ s/-/_/g;
-    *$method = sub { shift->{headers}->{$header} };
+    *$method = sub { shift->{headers}->{lc $header} };
 }
 
 sub is_success {
