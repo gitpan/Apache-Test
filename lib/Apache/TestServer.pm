@@ -81,11 +81,17 @@ sub dversion {
 }
 
 sub config_defines {
+    my $self = shift;
+
     my @defines = ();
 
     for my $item (qw(useithreads)) {
         next unless $Config{$item} and $Config{$item} eq 'define';
         push @defines, "-DPERL_\U$item";
+    }
+
+    if (my $defines = $self->{config}->{vars}->{defines}) {
+        push @defines, map { "-D$_" } split " ", $defines;
     }
 
     "@defines";

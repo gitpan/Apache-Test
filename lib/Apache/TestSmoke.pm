@@ -94,9 +94,6 @@ sub new {
         $self->{trace}    = 'debug';
     }
 
-    # server is run from under t/
-    Apache::TestHarness->chdir_t;
-
     # specific tests end up in $self->{tests} and $self->{subtests};
     # and get removed from $self->{argv}
     $self->Apache::TestRun::split_test_args();
@@ -600,7 +597,9 @@ sub report_start {
     $self->{start_time} = $time;
     $time =~ s/\s/_/g;
     $time =~ s/:/-/g; # winFU
-    my $file = $self->{opts}->{report} || "../smoke-report-$time.txt";
+    my $file = $self->{opts}->{report} ||
+        catfile Apache::Test::vars('top_dir'), "smoke-report-$time.txt";
+    info "Report file: $file";
 
     open my $fh, ">$file" or die "cannot open $file for writing: $!";
     $self->{fh} = $fh;

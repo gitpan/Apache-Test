@@ -16,7 +16,7 @@ use vars qw(@ISA @EXPORT $VERSION %SubTests @SkipReasons);
              have_min_apache_version have_apache_version have_perl 
              have_min_perl_version have_min_module_version
              have_threads under_construction have_apache_mpm);
-$VERSION = '1.07';
+$VERSION = '1.08';
 
 %SubTests = ();
 @SkipReasons = ();
@@ -32,7 +32,7 @@ sub config {
 }
 
 sub vars {
-    config()->{vars};
+    @_ ? @{ config()->{vars} }{ @_ } : config()->{vars};
 }
 
 sub sok (&;$) {
@@ -225,8 +225,7 @@ sub have_min_module_version {
     # have_module requires the perl module
     return 0 unless have_module($module);
 
-    my $has_version = $module->VERSION || 0;
-    return 1 if $has_version >= $version;
+    return 1 if eval { $module->VERSION($version) };
 
     push @SkipReasons, "$module version $version or higher is required";
     return 0;
@@ -264,7 +263,7 @@ sub have_min_apache_version {
     my $cfg = Apache::Test::config();
     (my $current) = $cfg->{server}->{version} =~ m:^Apache/(\d\.\d+\.\d+):;
 
-    if ($current lt $wanted) {
+    if (normalize_vstring($current) < normalize_vstring($wanted)) {
         push @SkipReasons,
           "apache version $wanted or higher is required," .
           " this is version $current";
@@ -280,7 +279,7 @@ sub have_apache_version {
     my $cfg = Apache::Test::config();
     (my $current) = $cfg->{server}->{version} =~ m:^Apache/(\d\.\d+\.\d+):;
 
-    if ($current ne $wanted) {
+    if (normalize_vstring($current) != normalize_vstring($wanted)) {
         push @SkipReasons,
           "apache version $wanted or higher is required," .
           " this is version $current";
@@ -370,6 +369,16 @@ sub have_threads {
 sub under_construction {
     push @SkipReasons, "This test is under construction";
     return 0;
+}
+
+# normalize Apache-sytle version strings (2.0.48, 0.9.4)
+# for easy numeric comparison.  note that 2.1 and 2.1.0
+# are considered equivalent.
+sub normalize_vstring {
+
+    my @digits = shift =~ m/(\d+)\.?(\d*)\.?(\d*)/;
+
+    return join '', map { sprintf("%03d", $_ || 0) } @digits;
 }
 
 package Apache::TestToString;
@@ -681,6 +690,29 @@ It's possible to put more than one requirement into a single hash
 reference, but be careful that the keys will be different.
 
 Also see plan().
+
+=item config
+
+  my $cfg = Apache::Test::config();
+  my $server_rev = $cfg->{server}->{rev};
+  ...
+
+C<config()> gives an access to the configuration object.
+
+=item vars
+
+  my $serverroot = Apache::Test::vars->{serverroot};
+  my $serverroot = Apache::Test::vars('serverroot');
+  my($top_dir, $t_dir) = Apache::Test::vars(qw(top_dir t_dir));
+
+C<vars()> gives an access to the configuration variables, otherwise
+accessible as:
+
+  $vars = Apache::Test::config()->{vars};
+
+If no arguments are passed, the reference to the variables hash is
+returned. If one or more arguments are passed the corresponding values
+are returned.
 
 =back
 

@@ -4,17 +4,12 @@ use strict;
 use warnings FATAL => 'all';
 
 use Test::Harness ();
+use Apache::Test ();
 use Apache::TestSort ();
 use Apache::TestTrace;
-use File::Spec::Functions qw(catfile);
+use File::Spec::Functions qw(catfile catdir);
 use File::Find qw(finddepth);
 use File::Basename qw(dirname);
-
-sub chdir_t {
-    chdir 't' if -d 't';
-#Apache::TestConfig->new takes care of @INC
-#    inc_fixup();
-}
 
 sub inc_fixup {
     # use blib
@@ -29,7 +24,7 @@ sub inc_fixup {
 #skip tests listed in t/SKIP
 sub skip {
     my($self, $file) = @_;
-    $file ||= 'SKIP';
+    $file ||= catfile Apache::Test::vars('serverroot'), 'SKIP';
 
     return unless -e $file;
 
@@ -101,14 +96,14 @@ sub get_tests {
     my $args = shift;
     my @tests = ();
 
-    chdir_t();
+    my $base = -d 't' ? catdir('t', '.') : '.';
 
     my $ts = $args->{tests} || [];
 
     if (@$ts) {
 	for (@$ts) {
 	    if (-d $_) {
-		push(@tests, sort <$_/*.t>);
+		push(@tests, sort <$base/$_/*.t>);
 	    }
 	    else {
 		$_ .= ".t" unless /\.t$/;
@@ -118,7 +113,7 @@ sub get_tests {
     }
     else {
         if ($args->{tdirs}) {
-            push @tests, map { sort <$_/*.t> } @{ $args->{tdirs} };
+            push @tests, map { sort <$base/$_/*.t> } @{ $args->{tdirs} };
         }
         else {
             finddepth(sub {
@@ -127,7 +122,7 @@ sub get_tests {
                           my $dotslash = catfile '.', "";
                           $t =~ s:^\Q$dotslash::;
                           push @tests, $t
-                      }, '.');
+                      }, $base);
             @tests = sort @tests;
         }
     }
