@@ -24,7 +24,7 @@ my %core_files  = ();
 my %original_t_perms = ();
 
 my @std_run      = qw(start-httpd run-tests stop-httpd);
-my @others       = qw(verbose configure clean help ssl http11);
+my @others       = qw(verbose configure clean help ssl http11 bugreport);
 my @flag_opts    = (@std_run, @others);
 my @string_opts  = qw(order trace);
 my @ostring_opts = qw(proxy ping);
@@ -46,6 +46,7 @@ my %usage = (
    'configure'       => 'force regeneration of httpd.conf (tests will not be run)',
    'clean'           => 'remove all generated test files',
    'help'            => 'display this message',
+   'bugreport'       => 'print the hint how to report problems',
    'preamble'        => 'config to add at the beginning of httpd.conf',
    'postamble'       => 'config to add at the end of httpd.conf',
    'ping[=block]'    => 'test if server is running or port in use',
@@ -305,13 +306,29 @@ sub install_sighandlers {
 
     eval 'END {
              return unless is_parent(); # because of fork
-             local $?; # preserve the exit status
-             eval {
-                Apache::TestRun->new(test_config =>
-                                     Apache::TestConfig->thaw)->scan_core;
-             };
+             $self ||=
+                 Apache::TestRun->new(test_config => Apache::TestConfig->thaw);
+             {
+                 local $?; # preserve the exit status
+                 eval {
+                    $self->scan_core;
+                 };
+             }
+             $self->try_bug_report();
          }';
+    die "failed: $@" if $@;
+
 }
+
+sub try_bug_report {
+    my $self = shift;
+    if ($? && $self->{opts}->{bugreport}) {
+        $self->bug_report;
+    }
+}
+
+# virtual method: does nothing
+sub bug_report {}
 
 #throw away cached config and start fresh
 sub refresh {
@@ -800,10 +817,19 @@ sub check_perms {
     my $vars = $self->{test_config}->{vars};
     my $dir  = $vars->{t_dir};
     my $perl = $vars->{perl};
-    my $check = qq[su -m $user -c '$perl -e ] .
-        qq["print -r q{$dir} &&  -w _ && -x _ ? q{OK} : q{NOK}"'];
+
+    my $check = <<"EOC";
+$perl -e '
+    require POSIX;
+    POSIX::setuid($uid);
+    POSIX::setgid($gid);
+    print -r q{$dir} &&  -w _ && -x _ ? q{OK} : q{NOK};
+'
+EOC
+    $check =~ s/\n/ /g;
     warning "$check\n";
-    my $res   = qx[$check] || '';
+
+    my $res = qx[$check] || '';
     warning "result: $res";
     unless ($res eq 'OK') {
         #$self->restore_t_perms;
@@ -811,16 +837,19 @@ sub check_perms {
 You are running the test suite under user 'root'.
 Apache cannot spawn child processes as 'root', therefore
 we attempt to run the test suite with user '$user' ($uid:$gid).
-The problem is that the path:
+The problem is that the path (including all parent directories):
   $dir
 must be 'rwx' by user '$user', so Apache can read and write under that
 path.
 
-There several ways to resolve this issue. For example move 
-'$dir' to '/tmp/' and repeat the 'make test' phase. 
+There are several ways to resolve this issue. One is to move '$dir' to
+'/tmp/' and repeat the 'make test' phase. The other is not to run
+'make test' as root.
 
-You can test whether the location is good by running the following test:
+You can test whether some directory is suitable for 'make test' under
+'root', by running the following test:
   % $check
+from that directory.
 EOI
     }
 }
@@ -1009,6 +1038,36 @@ of the test suite.
 Several methods are sub-classable, if the default behavior should be
 changed.
 
+=head2 C<bug_report>
+
+The C<bug_report()> method is executed when C<t/TEST> was executed
+with the C<-bugreport> option, and C<make test> (or C<t/TEST>)
+fail. Normally this is callback which you can use to tell the user how
+to deal with the problem, e.g. suggesting to read some document or
+email some details to someone who can take care of it. By default
+nothing is executed.
+
+The C<-bugreport> option is needed so this feature won't become
+annoying to developers themselves. It's automatically added to the
+C<run_tests> target in F<Makefile>. So if you repeateadly have to test
+your code, just don't use C<make test> but run C<t/TEST>
+directly. Here is an example of a custom C<t/TEST>
+
+  My::TestRun->new->run(@ARGV);
+  
+  package My::TestRun;
+  use base 'Apache::TestRun';
+
+  sub bug_report {
+      my $self = shift;
+  
+      print <<EOI;
+  +--------------------------------------------------------+
+  | Please file a bug report: http://perl.apache.org/bugs/ |
+  +--------------------------------------------------------+
+  EOI
+  }
+
 =head2 C<pre_configure>
 
 The C<pre_configure()> method is executed before the configuration for
@@ -1034,5 +1093,8 @@ I<t/TEST.PL>:
 
 Notice that the extension is I<.c>, and not I<.so>.
 
+=head2 C<new_test_config>
+
+META: to be completed
 
 =cut

@@ -522,10 +522,12 @@ sub start {
     $mpm = "($mpm MPM)" if $mpm;
     print "using $version $mpm\n";
 
-    my $timeout = 60; # secs XXX: make a constant?
+    my $timeout = $vars->{startup_timeout} ||
+                  $ENV{APACHE_TEST_STARTUP_TIMEOUT} ||
+                  60;
 
     my $start_time = time;
-    my $preamble = "${CTRL_M}waiting for server to start: ";
+    my $preamble = "${CTRL_M}waiting $timeout seconds for server to start: ";
     print $preamble unless COLOR;
     while (1) {
         my $delta = time - $start_time;

@@ -23,7 +23,7 @@ use File::Find qw(finddepth);
 use File::Basename qw(dirname);
 use File::Path ();
 use File::Spec::Functions qw(catfile abs2rel splitdir canonpath
-                             catdir file_name_is_absolute);
+                             catdir file_name_is_absolute devnull);
 use Cwd qw(fastcwd);
 
 use Apache::TestConfigPerl ();
@@ -35,30 +35,31 @@ use Socket ();
 use vars qw(%Usage);
 
 %Usage = (
-   top_dir       => 'top-level directory (default is $PWD)',
-   t_dir         => 'the t/ test directory (default is $top_dir/t)',
-   t_conf        => 'the conf/ test directory (default is $t_dir/conf)',
-   t_logs        => 'the logs/ test directory (default is $t_dir/logs)',
-   t_conf_file   => 'test httpd.conf file (default is $t_conf/httpd.conf)',
-   src_dir       => 'source directory to look for mod_foos.so',
-   serverroot    => 'ServerRoot (default is $t_dir)',
-   documentroot  => 'DocumentRoot (default is $ServerRoot/htdocs',
-   port          => 'Port [port_number|select] (default ' . DEFAULT_PORT . ')',
-   servername    => 'ServerName (default is localhost)',
-   user          => 'User to run test server as (default is $USER)',
-   group         => 'Group to run test server as (default is $GROUP)',
-   bindir        => 'Apache bin/ dir (default is apxs -q BINDIR)',
-   sbindir       => 'Apache sbin/ dir (default is apxs -q SBINDIR)',
-   httpd         => 'server to use for testing (default is $bindir/httpd)',
-   target        => 'name of server binary (default is apxs -q TARGET)',
-   apxs          => 'location of apxs (default is from Apache::BuildConfig)',
-   httpd_conf    => 'inherit config from this file (default is apxs derived)',
-   maxclients    => 'maximum number of concurrent clients (default is 1)',
-   perlpod       => 'location of perl pod documents (for testing downloads)',
-   proxyssl_url  => 'url for testing ProxyPass / https (default is localhost)',
-   sslca         => 'location of SSL CA (default is $t_conf/ssl/ca)',
-   sslcaorg      => 'SSL CA organization to use for tests (default is asf)',
-   libmodperl    => 'path to mod_perl\'s .so (full or relative to LIBEXECDIR)',
+   top_dir         => 'top-level directory (default is $PWD)',
+   t_dir           => 'the t/ test directory (default is $top_dir/t)',
+   t_conf          => 'the conf/ test directory (default is $t_dir/conf)',
+   t_logs          => 'the logs/ test directory (default is $t_dir/logs)',
+   t_conf_file     => 'test httpd.conf file (default is $t_conf/httpd.conf)',
+   src_dir         => 'source directory to look for mod_foos.so',
+   serverroot      => 'ServerRoot (default is $t_dir)',
+   documentroot    => 'DocumentRoot (default is $ServerRoot/htdocs',
+   port            => 'Port [port_number|select] (default ' . DEFAULT_PORT . ')',
+   servername      => 'ServerName (default is localhost)',
+   user            => 'User to run test server as (default is $USER)',
+   group           => 'Group to run test server as (default is $GROUP)',
+   bindir          => 'Apache bin/ dir (default is apxs -q BINDIR)',
+   sbindir         => 'Apache sbin/ dir (default is apxs -q SBINDIR)',
+   httpd           => 'server to use for testing (default is $bindir/httpd)',
+   target          => 'name of server binary (default is apxs -q TARGET)',
+   apxs            => 'location of apxs (default is from Apache::BuildConfig)',
+   startup_timeout => 'seconds to wait for the server to start (default is 60)',
+   httpd_conf      => 'inherit config from this file (default is apxs derived)',
+   maxclients      => 'maximum number of concurrent clients (default is 1)',
+   perlpod         => 'location of perl pod documents (for testing downloads)',
+   proxyssl_url    => 'url for testing ProxyPass / https (default is localhost)',
+   sslca           => 'location of SSL CA (default is $t_conf/ssl/ca)',
+   sslcaorg        => 'SSL CA organization to use for tests (default is asf)',
+   libmodperl      => 'path to mod_perl\'s .so (full or relative to LIBEXECDIR)',
    (map { $_ . '_module_name', "$_ module name"} qw(cgi ssl thread access auth)),
 );
 
@@ -1420,7 +1421,8 @@ sub which {
 sub apxs {
     my($self, $q, $ok_fail) = @_;
     return unless $self->{APXS};
-    my $val = qx($self->{APXS} -q $q 2>/dev/null);
+    my $devnull = devnull();
+    my $val = qx($self->{APXS} -q $q 2>$devnull);
     chomp $val if defined $val; # apxs post-2.0.40 adds a new line
     unless ($val) {
         if ($ok_fail) {

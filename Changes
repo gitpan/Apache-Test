@@ -6,6 +6,24 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.06 - November 10, 2003
+
+added -startup_timeout and $ENV{APACHE_TEST_STARTUP_TIMEOUT} as places
+to specify the maximum number of seconds to wait for the test
+server to start.  the default is still 60 seconds.  [Geoffrey Young]
+
+use apxs PREFIX to resolve relative httpd.conf directives
+ServerRoot is not present [Mike Cramer]
+
+add support for a new subclass method 'bug_report', which if provided
+will be called when 'make test' fails. we use it in mod_perl to print
+the pointers on how to proceed when the failure occurs. [Stas]
+
+sudo and su -u aren't portable, therefore use a simple setuid/setguid
+perl program instead, to check whether the root directory of the test
+suite is rwx by the user/group apache is going to run under (when
+running 'make test' as root). [Stas]
+
 =item 1.05 - October 23, 2003
 
 core scanning changes [Stas]
