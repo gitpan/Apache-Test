@@ -822,7 +822,7 @@ usage: TEST [options ...]
 EOM
 
     for (sort keys %usage){
-        printf "   -%-16s %s\n", $_, $usage{$_};
+        printf "  -%-13s %s\n", $_, $usage{$_};
     }
 
     print "\n   configuration options:\n";
@@ -838,10 +838,12 @@ sub generate_script {
 
     $file ||= catfile 't', 'TEST';
 
-    my $body = Apache::TestConfig->modperl_2_inc_fixup;
+    my $body = "use blib;\n";
+
+    $body .= Apache::TestConfig->modperl_2_inc_fixup;
 
     if (@Apache::TestMM::Argv) {
-        $body .= "\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
+        $body .= "\n\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
     }
 
     my $header = Apache::TestConfig->perlscript_header;

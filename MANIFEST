@@ -35,3 +35,4 @@ Makefile.PL
 README
 ToDo
 
+META.yml                                Module meta-data in YAML
