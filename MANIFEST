@@ -11,6 +11,7 @@ lib/Apache/TestConfigPerl.pm
 lib/Apache/TestHandler.pm
 lib/Apache/TestHarness.pm
 lib/Apache/TestMM.pm
+lib/Apache/TestMB.pm
 lib/Apache/TestPerlDB.pm
 lib/Apache/TestReport.pm
 lib/Apache/TestReportPerl.pm
@@ -28,6 +29,7 @@ lib/Bundle/ApacheTest.pm
 t/TEST.PL
 t/conf/extra.conf.in
 t/ping.t
+t/redirect.t
 t/request.t
 install-pl
 Changes

@@ -6,6 +6,37 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.12 - June 28, 2004
+
+Force projects that use Apache::TestReportPerl to implement
+report_to() if they use t/REPORT in their projects. [Stas]
+
+Add redirect tests [David Wheeler <david@kineticode.com>]
+
+add -no-httpd runtime option to allow tests to run without configuring,
+starting, or stopping Apache.  this essentially provides a direct
+Test::Harness interface through t/TEST, useful for running single tests
+that do not depend on Apache.  [Geoffrey Young]
+
+Add support for Module::Build, with a new module: Apache::TestMB (a
+"clone" of Apache::TestMM for ExtUtils::MakeMaker). [David Wheeler
+<david@kineticode.com>]
+
+switch the order of arguments in t_cmp() and t_is_equal() so that
+the order matches Test::More::is() and other Test::More functions.
+the new call is: t_cmp($received, $expected, $comment);  support
+for $expected as the first argument marked as deprecated and will
+be removed in the course of the next few release cycles.
+[Geoffrey Young]
+
+add skip_reason() to Apache::Test, which provides a mechanism for
+user-specified skip messages [Geoffrey Young]
+
+Tweak Apache::TestRun to support test filenames starting with
+/(.\\)?t\\/ prefixes, windows style (needed for t/SMOKE) [Steve Hay]
+
+
+
 =item 1.11 - May 21, 2004
 
 if we fail to match the Apache revision (which is OK at the early
