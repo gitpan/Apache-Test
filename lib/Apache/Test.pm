@@ -23,7 +23,7 @@ use Apache::TestConfig ();
 
 use vars qw(@ISA @EXPORT %EXPORT_TAGS $VERSION %SubTests @SkipReasons);
 
-$VERSION = '1.21';
+$VERSION = '1.22';
 
 my @need = qw(need_lwp need_http11 need_cgi need_access need_auth
               need_module need_apache need_min_apache_version
@@ -155,12 +155,12 @@ sub test_pm_refresh {
 sub init_test_pm {
     my $r = shift;
 
-    # needed to load Apache::RequestRec::TIEHANDLE
-    eval {require Apache::RequestIO};
-    if (defined &Apache::RequestRec::TIEHANDLE) {
+    # needed to load Apache2::RequestRec::TIEHANDLE
+    eval {require Apache2::RequestIO};
+    if (defined &Apache2::RequestRec::TIEHANDLE) {
         untie *STDOUT;
         tie *STDOUT, $r;
-        require Apache::RequestRec; # $r->pool
+        require Apache2::RequestRec; # $r->pool
         require APR::Pool;
         $r->pool->cleanup_register(sub { untie *STDOUT });
     }
