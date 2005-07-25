@@ -6,6 +6,19 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.26
+
+make sure mp2 loading doesn't make it impossible to complete
+mp1 runs.  [Matt Sergeant, Geoffrey Young]
+
+add Apache::TestConfigParrot and Apache::TestRunParrot to
+support mod_parrot server-side testing [Geoffrey Young]
+
+update -withtestmore action to properly work with newer versions
+of Test::Builder [Geoffrey Young]
+
+
+
 =item 1.25 - June 17, 2005
 
 provide $Apache::TestUtil::DEBUG_OUTPUT as target for t_debug()
