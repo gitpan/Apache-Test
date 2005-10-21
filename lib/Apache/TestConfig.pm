@@ -1,4 +1,5 @@
-# Copyright 2001-2004 The Apache Software Foundation
+# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
+# applicable.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1196,6 +1197,8 @@ sub parse_vhost {
         }
     }
 
+    $self->{vars}->{$module . '_port'} = $port;
+
     #there are two ways of building a vhost
     #first is when we parse test .pm and .c files
     #second is when we scan *.conf.in
@@ -1548,7 +1551,7 @@ sub generate_httpd_conf {
 
     for my $name (qw(user group)) { #win32/cygwin do not support
         if ($vars->{$name}) {
-            print $out "\u$name    $vars->{$name}\n";
+            print $out qq[\u$name    "$vars->{$name}"\n];
         }
     }
 
@@ -1834,7 +1837,10 @@ sub as_string {
         $command = "$httpd -V";
         $cfg .= "\n*** $command\n";
         $cfg .= qx{$command};
-    } else {
+
+        $cfg .= ldd_as_string($httpd);
+    } 
+    else {
         $cfg .= "\n\n*** The httpd binary was not found\n";
     }
 
@@ -1847,6 +1853,28 @@ sub as_string {
     return $cfg;
 }
 
+sub ldd_as_string {
+    my $httpd = shift;
+
+    my $command;
+    if (OSX) {
+        my $otool = which('otool');
+        $command = "$otool -L $httpd" if $otool;
+    }
+    elsif (!WIN32) {
+        my $ldd = which('ldd');
+        $command = "$ldd $httpd" if $ldd;
+    }
+
+    my $cfg = '';
+    if ($command) {
+        $cfg .= "\n*** $command\n";
+        $cfg .= qx{$command};
+    }
+
+    return $cfg;
+}
+  
 # make a string suitable for feed to shell calls (wrap in quotes and
 # escape quotes)
 sub shell_ready {
@@ -2529,6 +2557,10 @@ LogLevel    debug
 
 <IfModule mod_log_config.c>
     TransferLog @t_logs@/access_log
+</IfModule>
+
+<IfModule mod_cgid.c>
+    ScriptSock @t_logs@/cgisock
 </IfModule>
 
 ServerAdmin @ServerAdmin@

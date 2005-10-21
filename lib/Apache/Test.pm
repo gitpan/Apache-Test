@@ -1,4 +1,5 @@
-# Copyright 2001-2004 The Apache Software Foundation
+# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
+# applicable.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +24,7 @@ use Apache::TestConfig ();
 
 use vars qw(@ISA @EXPORT %EXPORT_TAGS $VERSION %SubTests @SkipReasons);
 
-$VERSION = '1.26';
+$VERSION = '1.27';
 
 my @need = qw(need_lwp need_http11 need_cgi need_access need_auth
               need_module need_apache need_min_apache_version
