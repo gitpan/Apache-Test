@@ -1,4 +1,4 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
+# Copyright 2001-2006 The Apache Software Foundation or its licensors, as
 # applicable.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -331,7 +331,7 @@ sub default_run_opts {
             $opts->{'run-tests'} = 1;
         }
         else {
-            #default is server-server run-tests stop-server
+            #default is start-server run-tests stop-server
             $opts->{$_} = 1 for @std_run;
         }
     }
@@ -535,9 +535,8 @@ sub try_exit_opts {
         }
         else {
             warning "server $self->{server}->{name} is not running";
-            # cleanup a stale httpd.pid file if found
-            my $t_logs  = $self->{test_config}->{vars}->{t_logs};
-            my $pid_file = catfile $t_logs, "httpd.pid";
+            # cleanup a stale pid file if found
+            my $pid_file  = $self->{test_config}->{vars}->{t_pid_file};
             unlink $pid_file if -e $pid_file;
         }
         exit_perl $ok;

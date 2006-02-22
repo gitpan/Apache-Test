@@ -1,4 +1,4 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
+# Copyright 2001-2006 The Apache Software Foundation or its licensors, as
 # applicable.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,10 +73,10 @@ sub configure_modperl {
         Apache::TestRun::exit_perl(0);
     }
 
-    $test_config->preamble_register(qw(configure_libmodperl));
+    $test_config->preamble_register(qw(configure_libmodperl
+                                       configure_env));
 
     $test_config->postamble_register(qw(configure_inc
-                                        configure_trace
                                         configure_pm_tests_inc
                                         configure_startup_pl
                                         configure_pm_tests));
