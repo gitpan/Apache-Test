@@ -1,9 +1,9 @@
-# Copyright 2001-2006 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -36,7 +36,7 @@ BEGIN {
 
 use vars qw(@ISA @EXPORT %EXPORT_TAGS $VERSION %SubTests @SkipReasons);
 
-$VERSION = '1.28';
+$VERSION = '1.29';
 
 my @need = qw(need_lwp need_http11 need_cgi need_access need_auth
               need_module need_apache need_min_apache_version
@@ -646,6 +646,12 @@ see C<need()> for more info.
 need_module() is called for each value in this array. The test is
 skipped if need_module() returns false (which happens when at least
 one C or Perl module from the list cannot be found).
+
+Watch out for case insensitive file systems or duplicate modules
+with the same name.  I.E.  If you mean mod_env.c
+   need_module('mod_env.c')
+Not
+   need_module('env')
 
 =item * a C<CODE> reference
 

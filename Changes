@@ -6,6 +6,42 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.29 November 28, 2006
+
+Require a minium of Module::Build 0.18 when using Apache::TestMB.
+PR: 19513
+[Philip M. Gollucci]
+
+Teach Apache::TestClient to encode spaces(' ') in query string of URLs
+as %20.  This is not a full mapping of ASCII to URL encoding.
+If you need this, install LWP -- then Apache-Test will use
+LWP -- which does this for you.
+[Philip M. Gollucci]
+
+Allow Apache::TestClient which is used when LWP is not installed
+to accept mutiple headers of the same name.
+[Philip M. Gollucci]
+
+Add t_start_error_log_watch() and t_finish_error_log_watch()
+to the Apache::TestUtil API which are only exported unpon request.
+[Torsten Foertsch <torsten.foertsch@gmx.net>]
+
+Allow version variants of debuggers to be passed as arguments
+to -debug.  i.e. -debug=gdb65 for systems with multiple
+versions of the same debugger. [Philip M. Gollucci]
+
+On Win32, the Apache executable is called httpd.exe in Apache/2.2,
+so let Apache::TestConfig try to find that if Apache.exe isn't
+found [Randy Kobes]
+
+force reconfiguration if existing configuration was generated
+by an older version of Apache-Test [Geoffrey Young]
+
+the -t_pid_file code resulted in confusing and fatal error message
+for people using stale 1.27 configurations.  so take steps to make
+sure things continue to work.  [Geoffrey Young]
+
+
 =item 1.28 - February 22, 2006 
 
 add need_imagemap() and have_imagemap() to check for mod_imap

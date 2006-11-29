@@ -1,9 +1,9 @@
-# Copyright 2001-2006 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -23,7 +23,7 @@ use constant OSX     => $^O eq 'darwin';
 use constant CYGWIN  => $^O eq 'cygwin';
 use constant NETWARE => $^O eq 'NetWare';
 use constant SOLARIS => $^O eq 'solaris';
-use constant WINFU   => WIN32 || CYGWIN || NETWARE;
+use constant WINFU   => WIN32 || NETWARE;
 use constant COLOR   => ($ENV{APACHE_TEST_COLOR} && -t STDOUT) ? 1 : 0;
 
 use constant DEFAULT_PORT => 8529;
@@ -716,6 +716,15 @@ sub default_httpd {
             for my $bindir (qw(bin sbin)) {
                 my $httpd = catfile $p, $bindir, $vars->{target};
                 return $httpd if -e $httpd;
+                # The executable on Win32 in Apache/2.2 is httpd.exe,
+                # so try that if Apache.exe doesn't exist
+                if (WIN32) {
+                    $httpd = catfile $p, $bindir, 'httpd.EXE';
+                    if (-e $httpd) {
+                        $vars->{target} = 'httpd.EXE';
+                        return $httpd;
+                    }
+                }
             }
         }
     }
@@ -1580,7 +1589,7 @@ sub generate_httpd_conf {
 
     $self->preamble_run($out);
 
-    for my $name (qw(user group)) { #win32/cygwin do not support
+    for my $name (qw(user group)) { #win32
         if ($vars->{$name}) {
             print $out qq[\u$name    "$vars->{$name}"\n];
         }
@@ -1656,6 +1665,17 @@ sub need_reconfiguration {
         if (my @env_vars = grep { $ENV{$_} } keys %$passenv) {
             push @reasons, "environment variables (@env_vars) are set";
         }
+    }
+
+    # if the generated config was created with a version of Apache-Test
+    # less than the current version
+    {
+      my $current = Apache::Test->VERSION;
+      my $config  = $self->{apache_test_version};
+
+      if (! $config || $config < $current) {
+          push @reasons, "configuration generated with old Apache-Test";
+      }
     }
 
     return @reasons;
@@ -1838,6 +1858,9 @@ sub save {
     my($self) = @_;
 
     return unless $self->{save};
+
+    # add in the Apache-Test version for later comparisions
+    $self->{apache_test_version} = Apache::Test->VERSION;
 
     my $name = 'apache_test_config';
     my $file = catfile $self->{vars}->{t_conf}, "$name.pm";
