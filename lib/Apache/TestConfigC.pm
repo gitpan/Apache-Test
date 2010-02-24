@@ -185,7 +185,7 @@ $lib: $name.c
 	\$(APXS) $dversion $extra -I$self->{cmodules_dir} -c $name.c
 
 clean:
-	-rm -rf $name.o $name.lo $name.slo $name.la .libs
+	-rm -rf $name.o $name.lo $name.slo $name.la $name.i $name.s $name.gcno .libs
 EOF
 
     close $fh or die "close $makefile: $!";
@@ -385,9 +385,9 @@ static const handler_rec name ## _handlers[] =
 module MODULE_VAR_EXPORT name ## _module =
 {
     STANDARD_MODULE_STUFF,
-    NULL,			/* initializer */
+    NULL,                       /* initializer */
     $cmodule_config_hooks,
-    name ## _handlers,	        /* handlers */
+    name ## _handlers,          /* handlers */
     $cmodule_hooks_1
 }
 EOF

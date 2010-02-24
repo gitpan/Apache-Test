@@ -18,7 +18,7 @@ package Apache::TestRequest;
 use strict;
 use warnings FATAL => 'all';
 
-BEGIN { 
+BEGIN {
     $ENV{PERL_LWP_USE_HTTP_10}   = 1;    # default to http/1.0
     $ENV{APACHE_TEST_HTTP_09_OK} ||= 0;  # 0.9 responses are ok
 }
@@ -256,11 +256,16 @@ sub new {
     $self;
 }
 
+sub credentials {
+    my $self = shift;
+    return $self->get_basic_credentials(@_);
+}
+
 sub get_basic_credentials {
     my($self, $realm, $uri, $proxy) = @_;
 
     for ($realm, '__ALL__') {
-        next unless $credentials{$_};
+        next unless $_ && $credentials{$_};
         return @{ $credentials{$_} };
     }
 
@@ -298,7 +303,7 @@ my %getline = (
         do {
             $self->read($c, 1);
             $buf .= $c;
-        } until ($c eq "\n");
+        } until ($c eq "\n" || $c eq "");
         $buf;
     },
 );
@@ -688,7 +693,7 @@ sub content_assert {
 
     return $res->content if $res->is_success;
 
-    die join "\n", 
+    die join "\n",
         "request has failed (the response code was: " . $res->code . ")",
         "see t/logs/error_log for more details\n";
 }

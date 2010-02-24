@@ -6,6 +6,55 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.31 February 24, 2010
+
+Modify need_cgi so that it looks for cgi.c instead of cgi.  This is a fix
+for the case insensitive filesystem correction listed below.
+[Phillipe M. Chiasson]
+
+t/next_available_port.t doesn't need mod_cgid, use need_cgi instead
+of need_module('mod_cgi.c')
+[Philippe M. Chiasson]
+
+PR: 21554
+Load mod_apreq2.so if it is available
+[Derek Price, <derek@ximbiot.com>]
+
+Add conditional to ignore IfVersion directive if mod_version is not built.
+[Adam Prime <adam.prime@utoronto.ca>, Fred Moyer <phred@apache.org>]
+
+PR: 41239
+t/TEST -ping does not return a valid return code to the calling shell
+[ozw1z5rd <alessio.palma@staff.dada.net>]
+
+Prevent infinite loop when no default apxs or httpd is present and repeated
+attempts to run the test suite under an automated harness (such as a cpan 
+smoke test).  Issue reported by CORION and ANDK, PR: 12911
+[Fred Moyer <phred@apache.org>]
+
+Use need_module('mod_cgi.c') and need_module('mod_cgid.c') in 
+t/next_available_port.t instead of need_cgi.  On case insensitive file
+systems such as OS X, need_cgi will fulfill the requirement with cgi.pm,
+when mod_cgi.c is the desired requirement.
+[Fred Moyer <phred@apache.org>]
+
+Fix overridden get_basic_credentials test when using NTLM authentication
+[Rick Frankel <cpan@rickster.com>]
+
+Work around a bug introduced in libwww-perl in version
+5.820 for httpd's credentials
+[Gunnar Wolf <gwolf@gwolf.org>, Niko Tyni <ntyni@debian.org>]
+
+Make Apache::TestConfig::untaint_path tolerate undefined arguments
+[Torsten Foertsch <torsten.foertsch@gmx.net]
+
+Inherit LoadFile directives from the global httpd.conf
+[Torsten Foertsch <torsten.foertsch@gmx.net]
+
+Don't overwrite php.ini if it already exists
+PR: 32994
+[MAHEX <MAHEX@cpan.org>]
+
 =item 1.30 November 26, 2007
 
 Added t_write_test_lib for temporary testing packages
