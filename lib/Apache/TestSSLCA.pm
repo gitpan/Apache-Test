@@ -228,7 +228,7 @@ crl              = $cacrl       # The current CRL
 private_key      = $cakey       # The private key
 
 default_days     = 365          # how long to certify for
-default_crl_days = 30           # how long before next CRL
+default_crl_days = 365          # how long before next CRL
 default_md       = md5          # which md to use.
 preserve         = no           # keep passed DN ordering
 
@@ -243,6 +243,7 @@ emailAddress            = optional
 
 [ comment ]
 nsComment = This Is A Comment
+1.3.6.1.4.1.18060.12.0 = DER:0c064c656d6f6e73
 
 EOF
 
@@ -313,9 +314,12 @@ sub new_cert {
 
 sub sign_cert {
     my $name = shift;
+    my $exts = '';
+
+    $exts = ' -extensions comment' if $name =~ /client_ok/;
 
     openssl ca => "$capolicy -in csr/$name.csr -out certs/$name.crt",
-                  $passin, config($name), '-batch -extensions comment';
+                  $passin, config($name), '-batch', $exts;
 }
 
 #handy for importing into a browser such as netscape
@@ -469,6 +473,13 @@ sub generate {
     my $dir  = basename $root;
 
     chdir $base;
+
+    # Ensure the CNs used in the server certs match up with the
+    # hostname being used for testing.
+    while (my($key, $val) = each %$cert_dn) {
+        next unless $key =~ /^server/;
+        $val->{CN} = $Config->{vars}->{servername};
+    }        
 
     #make a note that we created the tree
     $Config->clean_add_path($root);
