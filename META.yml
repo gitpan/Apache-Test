@@ -1,18 +1,22 @@
-name:         Apache-Test
-version_from: lib/Apache/Test.pm
-installdirs:  site
-
+--- #YAML:1.0
+name:               Apache-Test
+version:            1.34
+abstract:           ~
+author:  []
+license:            unknown
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+build_requires:
+    ExtUtils::MakeMaker:  0
 requires:
-    Cwd:                           2.06
-    File::Spec:                    0.8
-
-distribution_type: module
-
+    Cwd:         2.06
+    File::Spec:  0.8
 no_index:
-    package:
-        - HTTP::Request::Common
-        - warnings
-        - TestMore::testmorepm
-        - TestMore::testpm
     directory:
-        - Apache-TestItSelf
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.56
+meta-spec:
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4
