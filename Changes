@@ -6,6 +6,20 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.35 January 22, 2011
+
+Return value on running tests as root should be 0, not 1.  Thanks to Michael Schout for the spot.
+[Fred Moyer]
+
+Add support for RFC2253 DN string format to dn_oneline in Apache::TestSSLCA
+[Stefan Fritsch]
+
+Make Apache::Test::sok() compatible with the -withtestmore option
+[Torsten Foertsch]
+
+Make -withtestmore a per-package option (make it behave sane).
+[Torsten Foertsch]
+
 =item 1.34 December 18, 2010
 
 Fix build edge case where rpm based mp sources missing Apache2::Build cause
